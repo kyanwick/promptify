@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import ChatMessage from "./ChatMessage";
+
+type MessageContent = {
+  type: "text" | "image" | "video" | "code";
+  content: string;
+  language?: string;
+  url?: string;
+};
 
 type Message = {
   role: "user" | "assistant";
-  content: string;
+  contents: MessageContent[];
 };
 
 export default function ChatInterface() {
@@ -16,17 +24,42 @@ export default function ChatInterface() {
     if (!input.trim()) return;
 
     // Add user message
-    const userMessage: Message = { role: "user", content: input };
+    const userMessage: Message = { 
+      role: "user", 
+      contents: [{ type: "text", content: input }]
+    };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     // TODO: Call AI API and save to database
-    // For now, just mock response
+    // For now, mock response with different content types
     setTimeout(() => {
       const aiMessage: Message = {
         role: "assistant",
-        content: "This is a mock response. We'll wire up the AI next!",
+        contents: [
+          { type: "text", content: "Here's a mock response with different content types:" },
+          { type: "text", content: "\n**Text:** This is regular text content." },
+          { type: "text", content: "\n**Code Example:**" },
+          { 
+            type: "code", 
+            content: `function hello() {\n  console.log("Hello, world!");\n}\n\nhello();`,
+            language: "javascript"
+          },
+          { type: "text", content: "\n**Sample Image:**" },
+          {
+            type: "image",
+            url: "https://picsum.photos/400/300",
+            content: "Sample image from Lorem Picsum"
+          },
+          { type: "text", content: "\n**Sample Video:**" },
+          {
+            type: "video",
+            url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            content: "Sample YouTube video"
+          },
+          { type: "text", content: "\nAI integration coming next!" }
+        ],
       };
       setMessages((prev) => [...prev, aiMessage]);
       setIsLoading(false);
@@ -46,20 +79,7 @@ export default function ChatInterface() {
             </div>
           ) : (
             messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    msg.role === "user"
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-white"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </div>
+              <ChatMessage key={idx} role={msg.role} contents={msg.contents} />
             ))
           )}
           {isLoading && (
@@ -110,3 +130,4 @@ export default function ChatInterface() {
     </div>
   );
 }
+
