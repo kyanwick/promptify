@@ -34,12 +34,9 @@ export default function SignInForm() {
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           <div className="mb-5 sm:mb-8">
-            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              Sign In
+            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md text-center">
+              Welcome to Promptify
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Sign in with your Google account to continue
-            </p>
           </div>
           <div>
             <div className="grid grid-cols-1 gap-3">
@@ -71,19 +68,13 @@ export default function SignInForm() {
                     fill="#EB4335"
                   />
                 </svg>
-                Sign in with Google
+                Continue with Google
               </button>
             </div>
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Don&apos;t have an account? {""}
-                <Link
-                  href="/signup"
-                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                >
-                  Sign Up
-                </Link>
+                By continuing, you agree to our Terms of Service and Privacy Policy
               </p>
             </div>
           </div>
