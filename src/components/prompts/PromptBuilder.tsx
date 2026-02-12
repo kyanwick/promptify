@@ -10,6 +10,13 @@ import {
   Tooltip,
   useMediaQuery,
   useTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -19,10 +26,14 @@ import {
   ZoomOut as ZoomOutIcon,
   ZoomOutMap as ZoomResetIcon,
   Person as PersonIcon,
+  Visibility as PreviewIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import PromptNode from './PromptNode';
 import NodeConnection from './NodeConnection';
+import PromptPreview from './PromptPreview';
 import { Node, Connection } from './types';
+import { promptService } from '@/services/promptService';
 
 export default function PromptBuilder() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -31,6 +42,16 @@ export default function PromptBuilder() {
   const [zoom, setZoom] = useState(1);
   const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null);
   const [initialZoom, setInitialZoom] = useState(1);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [promptId, setPromptId] = useState<string | null>(null);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [showTitleDialog, setShowTitleDialog] = useState(false);
+  const [saveAction, setSaveAction] = useState<'draft' | 'publish' | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -67,28 +88,173 @@ export default function PromptBuilder() {
       setConnectionStart(nodeId);
     } else {
       // Complete connection
-      if (connectionStart !== nodeId) {
-        const newConnection: Connection = {
-          id: `conn-${Date.now()}`,
-          sourceId: connectionStart,
-          targetId: nodeId,
-        };
-        setConnections([...connections, newConnection]);
+      if (connectionStart === nodeId) {
+        // Prevent self-connection
+        setSnackbar({
+          open: true,
+          message: 'Cannot connect a node to itself',
+          severity: 'error',
+        });
+        setConnectionStart(null);
+        return;
       }
+      
+      const newConnection: Connection = {
+        id: `conn-${Date.now()}`,
+        sourceId: connectionStart,
+        targetId: nodeId,
+      };
+      setConnections([...connections, newConnection]);
       setConnectionStart(null);
     }
   };
 
+  const validateConnections = (): { valid: boolean; message?: string } => {
+    const systemMessages = nodes.filter(n => n.type === 'system');
+    const userPrompts = nodes.filter(n => n.type === 'user');
+    
+    // Check minimum requirements
+    if (systemMessages.length === 0 && userPrompts.length === 0) {
+      return { valid: false, message: 'Please add at least one System Message and one User Prompt' };
+    }
+    
+    if (systemMessages.length === 0) {
+      return { valid: false, message: 'Please add at least one System Message' };
+    }
+    
+    if (userPrompts.length === 0) {
+      return { valid: false, message: 'Please add at least one User Prompt' };
+    }
+
+    // Only check connections if there are 2+ user prompts
+    // A single user prompt doesn't need to be connected to anything
+    if (userPrompts.length > 1) {
+      const disconnectedNodes = userPrompts.filter(node => {
+        const hasConnection = connections.some(
+          conn => conn.sourceId === node.id || conn.targetId === node.id
+        );
+        return !hasConnection;
+      });
+
+      if (disconnectedNodes.length > 0) {
+        if (disconnectedNodes.length === 1) {
+          return {
+            valid: false,
+            message: `User Prompt "${disconnectedNodes[0].title}" is not connected. All user prompts must be connected to show the flow.`,
+          };
+        } else {
+          return {
+            valid: false,
+            message: `${disconnectedNodes.length} User Prompts are not connected. All user prompts must be connected to show the flow.`,
+          };
+        }
+      }
+    }
+
+    return { valid: true };
+  };
+
   const saveDraft = () => {
-    console.log('Saving draft:', { nodes, connections });
-    // TODO: Save to Supabase
-    alert('Draft saved! (Check console for data)');
+    const validation = validateConnections();
+    if (!validation.valid) {
+      setSnackbar({
+        open: true,
+        message: validation.message || 'Validation failed',
+        severity: 'error',
+      });
+      return;
+    }
+
+    if (!promptTitle) {
+      setSaveAction('draft');
+      setShowTitleDialog(true);
+    } else {
+      handleSave('draft');
+    }
   };
 
   const submitPrompt = () => {
-    console.log('Submitting prompt:', { nodes, connections });
-    // TODO: Process and send to AI
-    alert('Prompt submitted! (Check console for data)');
+    const validation = validateConnections();
+    if (!validation.valid) {
+      setSnackbar({
+        open: true,
+        message: validation.message || 'Validation failed',
+        severity: 'error',
+      });
+      return;
+    }
+
+    if (!promptTitle) {
+      setSaveAction('publish');
+      setShowTitleDialog(true);
+    } else {
+      handleSave('publish');
+    }
+  };
+
+  const handleSave = async (action: 'draft' | 'publish') => {
+    if (!promptTitle.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a title',
+        severity: 'error',
+      });
+      return;
+    }
+
+    if (nodes.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'Please add at least one node',
+        severity: 'error',
+      });
+      return;
+    }
+
+    try {
+      if (promptId) {
+        // Update existing prompt
+        if (action === 'publish') {
+          await promptService.publish(promptId, {
+            title: promptTitle,
+            nodes,
+            connections,
+          });
+        } else {
+          await promptService.updatePrompt(promptId, {
+            title: promptTitle,
+            nodes,
+            connections,
+            status: 'draft',
+          });
+        }
+      } else {
+        // Create new prompt
+        const result = await promptService.saveDraft({
+          title: promptTitle,
+          nodes,
+          connections,
+          status: action === 'publish' ? 'published' : 'draft',
+        });
+        if (result) {
+          setPromptId(result.id);
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: action === 'publish' ? 'Prompt published successfully!' : 'Draft saved successfully!',
+        severity: 'success',
+      });
+      setShowTitleDialog(false);
+    } catch (error) {
+      console.error('Error saving prompt:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save prompt',
+        severity: 'error',
+      });
+    }
   };
 
   const zoomIn = () => {
@@ -149,6 +315,34 @@ export default function PromptBuilder() {
         flexDirection: 'column',
       }}
     >
+      {/* Conditional rendering based on mode */}
+      {isPreviewMode ? (
+        // Preview Mode
+        <Stack sx={{ height: '100%' }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            sx={{ mb: 2 }}
+          >
+            <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight={600}>
+              Preview Mode
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<EditIcon />}
+              onClick={() => setIsPreviewMode(false)}
+            >
+              Back to Editor
+            </Button>
+          </Stack>
+          <Box sx={{ flex: 1, overflow: 'auto', height: '100%' }}>
+            <PromptPreview nodes={nodes} />
+          </Box>
+        </Stack>
+      ) : (
+        // Edit Mode
+        <>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"
@@ -199,10 +393,39 @@ export default function PromptBuilder() {
           <Stack direction="row" spacing={1}>
             {isMobile ? (
               <>
+                <Tooltip title="Preview form">
+                  <IconButton
+                    color="primary"
+                    onClick={() => {
+                      const validation = validateConnections();
+                      if (!validation.valid) {
+                        setSnackbar({
+                          open: true,
+                          message: validation.message || 'Validation failed',
+                          severity: 'error',
+                        });
+                        return;
+                      }
+                      setIsPreviewMode(true);
+                    }}
+                    disabled={nodes.filter(n => n.type === 'user').length === 0}
+                    sx={{
+                      border: 1,
+                      borderColor: 'primary.main',
+                      minWidth: 44,
+                      minHeight: 44,
+                    }}
+                  >
+                    <PreviewIcon />
+                  </IconButton>
+                </Tooltip>
                 <IconButton
                   color="primary"
                   onClick={saveDraft}
-                  disabled={nodes.length === 0}
+                  disabled={
+                    nodes.filter(n => n.type === 'system').length === 0 ||
+                    nodes.filter(n => n.type === 'user').length === 0
+                  }
                   sx={{
                     border: 1,
                     borderColor: 'primary.main',
@@ -215,20 +438,45 @@ export default function PromptBuilder() {
                 <Button
                   variant="contained"
                   onClick={submitPrompt}
-                  disabled={nodes.length === 0}
+                  disabled={
+                    nodes.filter(n => n.type === 'system').length === 0 ||
+                    nodes.filter(n => n.type === 'user').length === 0
+                  }
                   sx={{ minHeight: 44 }}
                 >
                   <SendIcon sx={{ mr: 0.5 }} />
-                  Submit
+                  Publish
                 </Button>
               </>
             ) : (
               <>
                 <Button
                   variant="outlined"
+                  startIcon={<PreviewIcon />}
+                  onClick={() => {
+                    const validation = validateConnections();
+                    if (!validation.valid) {
+                      setSnackbar({
+                        open: true,
+                        message: validation.message || 'Validation failed',
+                        severity: 'error',
+                      });
+                      return;
+                    }
+                    setIsPreviewMode(true);
+                  }}
+                  disabled={nodes.filter(n => n.type === 'user').length === 0}
+                >
+                  Preview
+                </Button>
+                <Button
+                  variant="outlined"
                   startIcon={<SaveIcon />}
                   onClick={saveDraft}
-                  disabled={nodes.length === 0}
+                  disabled={
+                    nodes.filter(n => n.type === 'system').length === 0 ||
+                    nodes.filter(n => n.type === 'user').length === 0
+                  }
                 >
                   Save Draft
                 </Button>
@@ -236,9 +484,12 @@ export default function PromptBuilder() {
                   variant="contained"
                   startIcon={<SendIcon />}
                   onClick={submitPrompt}
-                  disabled={nodes.length === 0}
+                  disabled={
+                    nodes.filter(n => n.type === 'system').length === 0 ||
+                    nodes.filter(n => n.type === 'user').length === 0
+                  }
                 >
-                  Submit
+                  Publish
                 </Button>
               </>
             )}
@@ -288,17 +539,73 @@ export default function PromptBuilder() {
             />
           ))}
 
-          {nodes.map((node) => (
-            <PromptNode
-              key={node.id}
-              node={node}
-              onUpdate={updateNode}
-              onDelete={deleteNode}
-              isMobile={isMobile}
-              onConnectionStart={handleConnectionStart}
-              isConnecting={connectionStart !== null}
-            />
-          ))}
+          {nodes.map((node) => {
+            // Check if this user prompt node is disconnected
+            // Only mark as disconnected if there are 2+ user prompts and this one isn't connected
+            const userPrompts = nodes.filter(n => n.type === 'user');
+            const userPromptCount = userPrompts.length;
+            const isDisconnected = 
+              node.type === 'user' && 
+              userPromptCount > 1 && 
+              !connections.some(
+                conn => conn.sourceId === node.id || conn.targetId === node.id
+              );
+
+            // Determine which connection circles to show
+            let showInputCircle = true;
+            let showOutputCircle = true;
+            
+            if (node.type === 'user') {
+              if (userPromptCount === 1) {
+                // Single user prompt: no circles
+                showInputCircle = false;
+                showOutputCircle = false;
+              } else if (userPromptCount === 2) {
+                // Two user prompts: first has output only, second has input only
+                const nodeIndex = userPrompts.findIndex(n => n.id === node.id);
+                if (nodeIndex === 0) {
+                  // First prompt: output only (bottom circle)
+                  showInputCircle = false;
+                  showOutputCircle = true;
+                } else {
+                  // Second prompt: input only (top circle)
+                  showInputCircle = true;
+                  showOutputCircle = false;
+                }
+              } else {
+                // 3+ user prompts: first has output only, last has input only, middle has both
+                const nodeIndex = userPrompts.findIndex(n => n.id === node.id);
+                if (nodeIndex === 0) {
+                  // First: output only
+                  showInputCircle = false;
+                  showOutputCircle = true;
+                } else if (nodeIndex === userPromptCount - 1) {
+                  // Last: input only
+                  showInputCircle = true;
+                  showOutputCircle = false;
+                } else {
+                  // Middle: both
+                  showInputCircle = true;
+                  showOutputCircle = true;
+                }
+              }
+            }
+
+            return (
+              <PromptNode
+                key={node.id}
+                node={node}
+                onUpdate={updateNode}
+                onDelete={deleteNode}
+                isMobile={isMobile}
+                onConnectionStart={handleConnectionStart}
+                isConnecting={connectionStart !== null}
+                isDisconnected={isDisconnected}
+                showInputCircle={showInputCircle}
+                showOutputCircle={showOutputCircle}
+              />
+            );
+          })}
 
           {nodes.length === 0 && (
             <Box
@@ -320,7 +627,7 @@ export default function PromptBuilder() {
                 mb={3}
                 sx={{ display: { xs: 'none', sm: 'block' } }}
               >
-                Add system messages and user prompts to create your workflow
+                Add at least one system message and one user prompt to create your workflow
               </Typography>
             </Box>
           )}
@@ -399,6 +706,55 @@ export default function PromptBuilder() {
           </>
         )}
       </Stack>
+        </>
+      )}
+
+      {/* Title Dialog */}
+      <Dialog open={showTitleDialog} onClose={() => setShowTitleDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {saveAction === 'publish' ? 'Publish Prompt' : 'Save Draft'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Prompt Title"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={promptTitle}
+            onChange={(e) => setPromptTitle(e.target.value)}
+            placeholder="Enter a title for your prompt"
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowTitleDialog(false)}>Cancel</Button>
+          <Button
+            onClick={() => saveAction && handleSave(saveAction)}
+            variant="contained"
+            disabled={!promptTitle.trim()}
+          >
+            {saveAction === 'publish' ? 'Publish' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

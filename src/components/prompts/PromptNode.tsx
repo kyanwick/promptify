@@ -19,6 +19,9 @@ export default function PromptNode({
   isMobile,
   onConnectionStart,
   isConnecting,
+  isDisconnected,
+  showInputCircle = true,
+  showOutputCircle = true,
 }: NodeComponentProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -36,7 +39,12 @@ export default function PromptNode({
         bounds="parent"
         enableResizing={false}
         enableUserSelectHack={false}
+        onDrag={(e, d) => {
+          // Update position in real-time while dragging for smooth connection lines
+          onUpdate(node.id, { x: d.x, y: d.y });
+        }}
         onDragStop={(e, d) => {
+          // Final position update when drag completes
           onUpdate(node.id, { x: d.x, y: d.y });
         }}
         style={{
@@ -54,7 +62,11 @@ export default function PromptNode({
             flexDirection: 'column',
             bgcolor: node.type === 'system' ? 'background.paper' : 'secondary.light',
             border: 2,
-            borderColor: node.type === 'system' ? 'secondary.main' : 'info.main',
+            borderColor: isDisconnected
+              ? 'error.main'
+              : node.type === 'system'
+              ? 'secondary.main'
+              : 'info.main',
             touchAction: 'none',
             position: 'relative',
             '&:hover': {
@@ -63,7 +75,7 @@ export default function PromptNode({
           }}
         >
           {/* Input connection handle (top) - only for user prompts */}
-          {node.type === 'user' && (
+          {node.type === 'user' && showInputCircle && (
             <Box
               sx={{
               position: 'absolute',
@@ -176,7 +188,7 @@ export default function PromptNode({
           />
           
           {/* Output connection handle (bottom) - only for user prompts */}
-          {node.type === 'user' && (
+          {node.type === 'user' && showOutputCircle && (
             <Box
             sx={{
               position: 'absolute',

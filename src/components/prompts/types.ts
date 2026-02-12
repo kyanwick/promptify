@@ -23,6 +23,9 @@ export interface NodeComponentProps {
   isMobile: boolean;
   onConnectionStart?: (nodeId: string) => void;
   isConnecting?: boolean;
+  isDisconnected?: boolean;
+  showInputCircle?: boolean;
+  showOutputCircle?: boolean;
 }
 
 export interface PromptNodeDialogProps {

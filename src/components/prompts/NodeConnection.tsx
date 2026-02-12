@@ -1,5 +1,5 @@
 'use client';
-import { Box } from '@mui/material';
+import React from 'react';
 import { Node, Connection } from './types';
 
 interface NodeConnectionProps {
@@ -8,7 +8,7 @@ interface NodeConnectionProps {
   zoom: number;
 }
 
-export default function NodeConnection({ connection, nodes, zoom }: NodeConnectionProps) {
+function NodeConnection({ connection, nodes, zoom }: NodeConnectionProps) {
   const sourceNode = nodes.find((n) => n.id === connection.sourceId);
   const targetNode = nodes.find((n) => n.id === connection.targetId);
 
@@ -39,19 +39,19 @@ export default function NodeConnection({ connection, nodes, zoom }: NodeConnecti
       <defs>
         <marker
           id={`arrowhead-${connection.id}`}
-          markerWidth="10"
-          markerHeight="10"
-          refX="9"
-          refY="3"
+          markerWidth="6"
+          markerHeight="6"
+          refX="5"
+          refY="2"
           orient="auto"
         >
-          <polygon points="0 0, 10 3, 0 6" fill="#ffc600" />
+          <polygon points="0 0, 6 2, 0 4" fill="#ffc600" />
         </marker>
       </defs>
       <path
         d={path}
         stroke="#ffc600"
-        strokeWidth={3 / zoom}
+        strokeWidth={2 / zoom}
         fill="none"
         markerEnd={`url(#arrowhead-${connection.id})`}
         strokeLinecap="round"
@@ -59,3 +59,5 @@ export default function NodeConnection({ connection, nodes, zoom }: NodeConnecti
     </svg>
   );
 }
+
+export default NodeConnection;
