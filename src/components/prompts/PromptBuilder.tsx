@@ -6,147 +6,22 @@ import {
   Button,
   Stack,
   Typography,
-  TextField,
   IconButton,
   Tooltip,
   useMediaQuery,
   useTheme,
-  Fab,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Save as SaveIcon,
   Send as SendIcon,
-  Delete as DeleteIcon,
   Description as DescriptionIcon,
   SmartToy as SmartToyIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
   ZoomOutMap as ZoomResetIcon,
 } from '@mui/icons-material';
-import { Rnd } from 'react-rnd';
-
-interface Node {
-  id: string;
-  type: 'context' | 'prompt';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  content: string;
-}
-
-const NodeComponent = ({
-  node,
-  onUpdate,
-  onDelete,
-  isMobile,
-}: {
-  node: Node;
-  onUpdate: (id: string, updates: Partial<Node>) => void;
-  onDelete: (id: string) => void;
-  isMobile: boolean;
-}) => {
-  return (
-    <Rnd
-      default={{
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height,
-      }}
-      minWidth={isMobile ? 250 : 200}
-      minHeight={isMobile ? 120 : 100}
-      bounds="parent"
-      enableUserSelectHack={false}
-      onDragStop={(e, d) => {
-        onUpdate(node.id, { x: d.x, y: d.y });
-      }}
-      onResizeStop={(e, direction, ref, delta, position) => {
-        onUpdate(node.id, {
-          width: parseInt(ref.style.width),
-          height: parseInt(ref.style.height),
-          ...position,
-        });
-      }}
-      style={{
-        zIndex: 1,
-      }}
-      dragHandleClassName="drag-handle"
-    >
-      <Paper
-        elevation={3}
-        sx={{
-          width: '100%',
-          height: '100%',
-          p: isMobile ? 1.5 : 2,
-          display: 'flex',
-          flexDirection: 'column',
-          bgcolor: node.type === 'context' ? 'background.paper' : 'primary.light',
-          border: 2,
-          borderColor: node.type === 'context' ? 'secondary.main' : 'primary.main',
-          touchAction: 'none',
-          '&:hover': {
-            boxShadow: 6,
-          },
-        }}
-      >
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          mb={1}
-          className="drag-handle"
-          sx={{ cursor: 'move', minHeight: isMobile ? 40 : 30 }}
-        >
-          <Stack direction="row" alignItems="center" spacing={1}>
-            {node.type === 'context' ? (
-              <DescriptionIcon fontSize={isMobile ? 'medium' : 'small'} />
-            ) : (
-              <SmartToyIcon fontSize={isMobile ? 'medium' : 'small'} />
-            )}
-            <Typography variant="caption" fontWeight={600} fontSize={isMobile ? 14 : 12}>
-              {node.type === 'context' ? 'Context Input' : 'AI Prompt'}
-            </Typography>
-          </Stack>
-          <IconButton
-            size={isMobile ? 'medium' : 'small'}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(node.id);
-            }}
-            sx={{ minWidth: isMobile ? 44 : 32, minHeight: isMobile ? 44 : 32 }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-        <TextField
-          multiline
-          fullWidth
-          rows={isMobile ? 2 : 3}
-          value={node.content}
-          onChange={(e) => onUpdate(node.id, { content: e.target.value })}
-          placeholder={
-            node.type === 'context'
-              ? 'Enter context information...'
-              : 'Enter your AI prompt...'
-          }
-          variant="outlined"
-          size="small"
-          sx={{
-            flex: 1,
-            '& .MuiOutlinedInput-root': {
-              height: '100%',
-              alignItems: 'flex-start',
-              fontSize: isMobile ? 14 : 13,
-            },
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      </Paper>
-    </Rnd>
-  );
-};
+import PromptNode from './PromptNode';
+import { Node } from './types';
 
 export default function PromptBuilder() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -156,12 +31,13 @@ export default function PromptBuilder() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const addNode = (type: 'context' | 'prompt') => {
+  const addNode = (type: 'system' | 'prompt') => {
     const maxX = isMobile ? 50 : 300;
     const maxY = isMobile ? 50 : 200;
     const newNode: Node = {
       id: `${type}-${Date.now()}`,
       type,
+      title: type === 'system' ? 'System Message' : 'AI Prompt',
       x: Math.random() * maxX + 20,
       y: Math.random() * maxY + 20,
       width: isMobile ? 280 : 300,
@@ -372,7 +248,7 @@ export default function PromptBuilder() {
           }}
         >
           {nodes.map((node) => (
-            <NodeComponent
+            <PromptNode
               key={node.id}
               node={node}
               onUpdate={updateNode}
@@ -401,7 +277,7 @@ export default function PromptBuilder() {
                 mb={3}
                 sx={{ display: { xs: 'none', sm: 'block' } }}
               >
-                Add context inputs and AI prompts to create your workflow
+                Add system messages and AI prompts to create your workflow
               </Typography>
             </Box>
           )}
@@ -419,10 +295,10 @@ export default function PromptBuilder() {
               fullWidth
               variant="outlined"
               startIcon={<DescriptionIcon />}
-              onClick={() => addNode('context')}
+              onClick={() => addNode('system')}
               sx={{ minHeight: 48 }}
             >
-              Add Context
+              Add System Message
             </Button>
             <Button
               fullWidth
@@ -436,13 +312,13 @@ export default function PromptBuilder() {
           </>
         ) : (
           <>
-            <Tooltip title="Add a context input node">
+            <Tooltip title="Add a system message node">
               <Button
                 variant="outlined"
                 startIcon={<DescriptionIcon />}
-                onClick={() => addNode('context')}
+                onClick={() => addNode('system')}
               >
-                Add Context
+                Add System Message
               </Button>
             </Tooltip>
             <Tooltip title="Add an AI prompt node">

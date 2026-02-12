@@ -1,4 +1,4 @@
-import PromptBuilder from '@/components/prompts/PromptBuilder';
+import PromptBuilder from '@/components/prompts';
 
 export default function PromptBuilderPage() {
   return <PromptBuilder />;
