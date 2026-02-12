@@ -13,7 +13,6 @@ import {
 } from '@mui/material';
 import {
   Description as DescriptionIcon,
-  SmartToy as SmartToyIcon,
   Close as CloseIcon,
   Person as PersonIcon,
 } from '@mui/icons-material';
@@ -65,14 +64,9 @@ export default function PromptNodeDialog({
                   {node.title} (Hidden from users)
                 </Typography>
               </>
-            ) : node.type === 'user' ? (
-              <>
-                <PersonIcon />
-                <Typography variant="h6">{node.title}</Typography>
-              </>
             ) : (
               <>
-                <SmartToyIcon />
+                <PersonIcon />
                 <Typography variant="h6">{node.title}</Typography>
               </>
             )}
@@ -92,9 +86,7 @@ export default function PromptNodeDialog({
           placeholder={
             node.type === 'system'
               ? 'Enter system message (hidden from users, visible to AI)...'
-              : node.type === 'user'
-              ? 'Enter the prompt text users will see (e.g., "What is your favorite cuisine?")...'
-              : 'Enter your AI prompt...'
+              : 'Enter the prompt text users will see (e.g., "What is your favorite cuisine?")...'
           }
           variant="outlined"
           autoFocus

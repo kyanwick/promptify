@@ -4,7 +4,6 @@ import { Paper, Stack, TextField, IconButton, Typography, Box } from '@mui/mater
 import {
   Delete as DeleteIcon,
   Description as DescriptionIcon,
-  SmartToy as SmartToyIcon,
   OpenInFull as ExpandIcon,
   Person as PersonIcon,
   CircleOutlined as CircleIcon,
@@ -53,9 +52,9 @@ export default function PromptNode({
             p: isMobile ? 1.5 : 2,
             display: 'flex',
             flexDirection: 'column',
-            bgcolor: node.type === 'system' ? 'background.paper' : node.type === 'user' ? 'secondary.light' : 'primary.light',
+            bgcolor: node.type === 'system' ? 'background.paper' : 'secondary.light',
             border: 2,
-            borderColor: node.type === 'system' ? 'secondary.main' : node.type === 'user' ? 'info.main' : 'primary.main',
+            borderColor: node.type === 'system' ? 'secondary.main' : 'info.main',
             touchAction: 'none',
             position: 'relative',
             '&:hover': {
@@ -63,9 +62,10 @@ export default function PromptNode({
             },
           }}
         >
-          {/* Input connection handle (top) */}
-          <Box
-            sx={{
+          {/* Input connection handle (top) - only for user prompts */}
+          {node.type === 'user' && (
+            <Box
+              sx={{
               position: 'absolute',
               top: -8,
               left: '50%',
@@ -92,6 +92,7 @@ export default function PromptNode({
               }}
             />
           </Box>
+          )}
 
           <Stack
             direction="row"
@@ -114,16 +115,9 @@ export default function PromptNode({
                   {node.title} (Hidden from users)
                 </Typography>
               </>
-            ) : node.type === 'user' ? (
-              <>
-                <PersonIcon fontSize={isMobile ? 'medium' : 'small'} />
-                <Typography variant="caption" fontWeight={600} fontSize={isMobile ? 14 : 12}>
-                  {node.title}
-                </Typography>
-              </>
             ) : (
               <>
-                <SmartToyIcon fontSize={isMobile ? 'medium' : 'small'} />
+                <PersonIcon fontSize={isMobile ? 'medium' : 'small'} />
                 <Typography variant="caption" fontWeight={600} fontSize={isMobile ? 14 : 12}>
                   {node.title}
                 </Typography>
@@ -162,9 +156,7 @@ export default function PromptNode({
             placeholder={
               node.type === 'system'
                 ? 'Enter system message (hidden from users, visible to AI)...'
-                : node.type === 'user'
-                ? 'Enter the prompt text users will see (e.g., "What is your favorite cuisine?")...'
-                : 'Enter your AI prompt...'
+                : 'Enter the prompt text users will see (e.g., "What is your favorite cuisine?")...'
             }
             variant="outlined"
             size="small"
@@ -183,8 +175,9 @@ export default function PromptNode({
             onClick={(e) => e.stopPropagation()}
           />
           
-          {/* Output connection handle (bottom) */}
-          <Box
+          {/* Output connection handle (bottom) - only for user prompts */}
+          {node.type === 'user' && (
+            <Box
             sx={{
               position: 'absolute',
               bottom: -8,
@@ -212,6 +205,7 @@ export default function PromptNode({
               }}
             />
           </Box>
+          )}
         </Paper>
       </Rnd>
 

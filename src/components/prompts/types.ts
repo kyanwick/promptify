@@ -1,6 +1,6 @@
 export interface Node {
   id: string;
-  type: 'system' | 'prompt' | 'user';
+  type: 'system' | 'user';
   title: string;
   x: number;
   y: number;
