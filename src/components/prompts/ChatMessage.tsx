@@ -33,14 +33,15 @@ export default function ChatMessage({ role, contents }: ChatMessageProps) {
     .filter(item => item.type === "text")
     .reduce((acc, item) => acc + item.content.length, 0);
   
-  const shouldWrap = isUser && totalTextLength > 75;
+  // On mobile: always constrain width. On desktop: only if > 75 chars
+  const shouldWrapDesktop = isUser && totalTextLength > 75;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start w-full"}`}>
       <div
-        className={`rounded-lg space-y-3 ${
+        className={`rounded-lg space-y-3 break-words ${
           isUser
-            ? `bg-brand-500 text-white p-4 ${shouldWrap ? 'max-w-md' : ''}`
+            ? `bg-brand-500 text-white p-4 max-w-[90vw] md:max-w-md ${!shouldWrapDesktop ? 'md:max-w-none' : ''}`
             : "text-gray-800 dark:text-white w-full"
         }`}
       >
