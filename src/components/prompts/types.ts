@@ -1,12 +1,13 @@
 export interface Node {
   id: string;
-  type: 'system' | 'prompt';
+  type: 'system' | 'prompt' | 'user';
   title: string;
   x: number;
   y: number;
   width: number;
   height: number;
   content: string;
+  hidden?: boolean; // For system messages - hidden from users but visible to AI
 }
 
 export interface NodeComponentProps {

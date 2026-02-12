@@ -19,6 +19,7 @@ import {
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
   ZoomOutMap as ZoomResetIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import PromptNode from './PromptNode';
 import { Node } from './types';
@@ -31,18 +32,19 @@ export default function PromptBuilder() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const addNode = (type: 'system' | 'prompt') => {
+  const addNode = (type: 'system' | 'prompt' | 'user') => {
     const maxX = isMobile ? 50 : 300;
     const maxY = isMobile ? 50 : 200;
     const newNode: Node = {
       id: `${type}-${Date.now()}`,
       type,
-      title: type === 'system' ? 'System Message' : 'AI Prompt',
+      title: type === 'system' ? 'System Message' : type === 'user' ? 'User Prompt' : 'AI Prompt',
       x: Math.random() * maxX + 20,
       y: Math.random() * maxY + 20,
       width: isMobile ? 280 : 300,
       height: isMobile ? 140 : 150,
       content: '',
+      hidden: type === 'system' ? true : false,
     };
     setNodes([...nodes, newNode]);
   };
@@ -277,7 +279,7 @@ export default function PromptBuilder() {
                 mb={3}
                 sx={{ display: { xs: 'none', sm: 'block' } }}
               >
-                Add system messages and AI prompts to create your workflow
+                Add system messages, user prompts, and AI prompts to create your workflow
               </Typography>
             </Box>
           )}
@@ -303,6 +305,15 @@ export default function PromptBuilder() {
             <Button
               fullWidth
               variant="outlined"
+              startIcon={<PersonIcon />}
+              onClick={() => addNode('user')}
+              sx={{ minHeight: 48 }}
+            >
+              Add User Prompt
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
               startIcon={<SmartToyIcon />}
               onClick={() => addNode('prompt')}
               sx={{ minHeight: 48 }}
@@ -319,6 +330,15 @@ export default function PromptBuilder() {
                 onClick={() => addNode('system')}
               >
                 Add System Message
+              </Button>
+            </Tooltip>
+            <Tooltip title="Add a user prompt input field">
+              <Button
+                variant="outlined"
+                startIcon={<PersonIcon />}
+                onClick={() => addNode('user')}
+              >
+                Add User Prompt
               </Button>
             </Tooltip>
             <Tooltip title="Add an AI prompt node">

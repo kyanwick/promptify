@@ -9,12 +9,13 @@ import {
   Stack,
   TextField,
   IconButton,
+  Typography,
 } from '@mui/material';
 import {
   Description as DescriptionIcon,
   SmartToy as SmartToyIcon,
   Close as CloseIcon,
-  Edit as EditIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { PromptNodeDialogProps } from './types';
 
@@ -25,23 +26,20 @@ export default function PromptNodeDialog({
   onSave,
 }: PromptNodeDialogProps) {
   const [expandedContent, setExpandedContent] = useState(node.content);
-  const [expandedTitle, setExpandedTitle] = useState(node.title);
 
   useEffect(() => {
     if (open) {
       setExpandedContent(node.content);
-      setExpandedTitle(node.title);
     }
-  }, [open, node.content, node.title]);
+  }, [open, node.content]);
 
   const handleCancel = () => {
     setExpandedContent(node.content);
-    setExpandedTitle(node.title);
     onClose();
   };
 
   const handleSave = () => {
-    onSave(node.id, { content: expandedContent, title: expandedTitle });
+    onSave(node.id, { content: expandedContent });
     onClose();
   };
 
@@ -61,36 +59,23 @@ export default function PromptNodeDialog({
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Stack direction="row" alignItems="center" spacing={1} flex={1}>
             {node.type === 'system' ? (
-              <DescriptionIcon />
+              <>
+                <DescriptionIcon />
+                <Typography variant="h6" sx={{ opacity: 0.7 }}>
+                  {node.title} (Hidden from users)
+                </Typography>
+              </>
+            ) : node.type === 'user' ? (
+              <>
+                <PersonIcon />
+                <Typography variant="h6">{node.title}</Typography>
+              </>
             ) : (
-              <SmartToyIcon />
+              <>
+                <SmartToyIcon />
+                <Typography variant="h6">{node.title}</Typography>
+              </>
             )}
-            <TextField
-              value={expandedTitle}
-              onChange={(e) => setExpandedTitle(e.target.value)}
-              variant="standard"
-              fullWidth
-              placeholder="Enter title..."
-              InputProps={{
-                startAdornment: (
-                  <EditIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
-                ),
-                style: {
-                  fontSize: 20,
-                  fontWeight: 600,
-                },
-              }}
-              sx={{
-                '& .MuiInput-root': {
-                  '&:before': {
-                    borderBottom: '2px solid rgba(0, 0, 0, 0.12)',
-                  },
-                  '&:hover:not(.Mui-disabled):before': {
-                    borderBottom: '2px solid rgba(0, 0, 0, 0.42)',
-                  },
-                },
-              }}
-            />
           </Stack>
           <IconButton onClick={onClose} size="small">
             <CloseIcon />
@@ -106,7 +91,9 @@ export default function PromptNodeDialog({
           onChange={(e) => setExpandedContent(e.target.value)}
           placeholder={
             node.type === 'system'
-              ? 'Enter system message...'
+              ? 'Enter system message (hidden from users, visible to AI)...'
+              : node.type === 'user'
+              ? 'Enter the prompt text users will see (e.g., "What is your favorite cuisine?")...'
               : 'Enter your AI prompt...'
           }
           variant="outlined"

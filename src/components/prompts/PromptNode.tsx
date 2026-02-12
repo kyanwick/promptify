@@ -1,11 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { Paper, Stack, TextField, IconButton } from '@mui/material';
+import { Paper, Stack, TextField, IconButton, Typography } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Description as DescriptionIcon,
   SmartToy as SmartToyIcon,
   OpenInFull as ExpandIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { Rnd } from 'react-rnd';
 import { NodeComponentProps } from './types';
@@ -49,9 +50,9 @@ export default function PromptNode({
             p: isMobile ? 1.5 : 2,
             display: 'flex',
             flexDirection: 'column',
-            bgcolor: node.type === 'system' ? 'background.paper' : 'primary.light',
+            bgcolor: node.type === 'system' ? 'background.paper' : node.type === 'user' ? 'secondary.light' : 'primary.light',
             border: 2,
-            borderColor: node.type === 'system' ? 'secondary.main' : 'primary.main',
+            borderColor: node.type === 'system' ? 'secondary.main' : node.type === 'user' ? 'info.main' : 'primary.main',
             touchAction: 'none',
             '&:hover': {
               boxShadow: 6,
@@ -66,38 +67,35 @@ export default function PromptNode({
             className="drag-handle"
             sx={{ cursor: 'move', minHeight: isMobile ? 40 : 30 }}
           >
-            <Stack direction="row" alignItems="center" spacing={1} flex={1}>
-              {node.type === 'system' ? (
+          <Stack direction="row" alignItems="center" spacing={1} flex={1}>
+            {node.type === 'system' ? (
+              <>
                 <DescriptionIcon fontSize={isMobile ? 'medium' : 'small'} />
-              ) : (
+                <Typography
+                  variant="caption"
+                  fontWeight={600}
+                  fontSize={isMobile ? 14 : 12}
+                  sx={{ opacity: 0.7 }}
+                >
+                  {node.title} (Hidden from users)
+                </Typography>
+              </>
+            ) : node.type === 'user' ? (
+              <>
+                <PersonIcon fontSize={isMobile ? 'medium' : 'small'} />
+                <Typography variant="caption" fontWeight={600} fontSize={isMobile ? 14 : 12}>
+                  {node.title}
+                </Typography>
+              </>
+            ) : (
+              <>
                 <SmartToyIcon fontSize={isMobile ? 'medium' : 'small'} />
-              )}
-              <TextField
-                value={node.title}
-                onChange={(e) => onUpdate(node.id, { title: e.target.value })}
-                variant="standard"
-                size="small"
-                fullWidth
-                inputProps={{
-                  style: {
-                    fontSize: isMobile ? 14 : 12,
-                    fontWeight: 600,
-                    padding: 0,
-                  },
-                }}
-                sx={{
-                  '& .MuiInput-root': {
-                    '&:before': {
-                      borderBottom: '1px solid transparent',
-                    },
-                    '&:hover:not(.Mui-disabled):before': {
-                      borderBottom: '1px solid rgba(0, 0, 0, 0.42)',
-                    },
-                  },
-                }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Stack>
+                <Typography variant="caption" fontWeight={600} fontSize={isMobile ? 14 : 12}>
+                  {node.title}
+                </Typography>
+              </>
+            )}
+          </Stack>
             <Stack direction="row" spacing={0.5}>
               <IconButton
                 size="small"
@@ -129,7 +127,9 @@ export default function PromptNode({
             onChange={(e) => onUpdate(node.id, { content: e.target.value })}
             placeholder={
               node.type === 'system'
-                ? 'Enter system message...'
+                ? 'Enter system message (hidden from users, visible to AI)...'
+                : node.type === 'user'
+                ? 'Enter the prompt text users will see (e.g., "What is your favorite cuisine?")...'
                 : 'Enter your AI prompt...'
             }
             variant="outlined"
