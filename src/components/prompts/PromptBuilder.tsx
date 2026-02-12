@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -41,6 +41,7 @@ export default function PromptBuilder() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [promptId, setPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -48,6 +49,29 @@ export default function PromptBuilder() {
   });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Track unsaved changes
+  useEffect(() => {
+    if (nodes.length > 0 || connections.length > 0 || promptTitle.trim()) {
+      setHasUnsavedChanges(true);
+    }
+  }, [nodes, connections, promptTitle]);
+
+  // Warn user before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   const addNode = (type: 'system' | 'user') => {
     const maxX = isMobile ? 50 : 300;
@@ -248,6 +272,7 @@ export default function PromptBuilder() {
         message: action === 'publish' ? 'Prompt published successfully!' : 'Draft saved successfully!',
         severity: 'success',
       });
+      setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Error saving prompt:', error);
       setSnackbar({
@@ -351,31 +376,47 @@ export default function PromptBuilder() {
         spacing={{ xs: 2, sm: 0 }}
         mb={2}
       >
-        <TextField
-          variant="standard"
-          value={promptTitle}
-          onChange={(e) => setPromptTitle(e.target.value)}
-          placeholder="Enter prompt title..."
-          sx={{
-            '& .MuiInputBase-input': {
-              fontSize: isMobile ? '1.5rem' : '2.125rem',
-              fontWeight: 600,
-              padding: 0,
-            },
-            '& .MuiInput-root': {
-              '&:before': {
-                borderBottom: '2px solid transparent',
+        <Box>
+          <TextField
+            variant="standard"
+            value={promptTitle}
+            onChange={(e) => setPromptTitle(e.target.value)}
+            placeholder="Enter prompt title..."
+            sx={{
+              '& .MuiInputBase-input': {
+                fontSize: isMobile ? '1.5rem' : '2.125rem',
+                fontWeight: 600,
+                padding: 0,
               },
-              '&:hover:not(.Mui-disabled):before': {
-                borderBottom: '2px solid rgba(0, 0, 0, 0.12)',
+              '& .MuiInput-root': {
+                '&:before': {
+                  borderBottom: '2px solid transparent',
+                },
+                '&:hover:not(.Mui-disabled):before': {
+                  borderBottom: '2px solid rgba(0, 0, 0, 0.12)',
+                },
+                '&:after': {
+                  borderBottom: '2px solid',
+                  borderColor: 'primary.main',
+                },
               },
-              '&:after': {
-                borderBottom: '2px solid',
-                borderColor: 'primary.main',
-              },
-            },
-          }}
-        />
+            }}
+          />
+          {hasUnsavedChanges && (
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'warning.main',
+                fontSize: '0.75rem',
+                fontStyle: 'italic',
+                mt: 0.5,
+                display: 'block',
+              }}
+            >
+              Unsaved changes
+            </Typography>
+          )}
+        </Box>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'space-between', sm: 'flex-start' }}>
           <Stack direction="row" spacing={0.5} alignItems="center">
             <IconButton
