@@ -7,7 +7,9 @@ import { createTheme } from '@mui/material/styles';
 // 10% Accent: #ffc600 (Gold) - CTAs, highlights
 
 const theme = createTheme({
-  cssVariables: true,
+  cssVariables: {
+    colorSchemeSelector: 'class',
+  },
   defaultColorScheme: 'light',
   colorSchemes: {
     light: {
@@ -49,8 +51,8 @@ const theme = createTheme({
           contrastText: '#1a1a1a',
         },
         background: {
-          default: '#003d36', // 60% dominant - dark teal background
-          paper: '#006e61', // Medium teal for cards
+          default: '#303030', // 60% dominant - dark teal background
+          paper: '#393939', // Medium teal for cards
         },
         text: {
           primary: '#ffffff',
