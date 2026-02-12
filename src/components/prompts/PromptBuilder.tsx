@@ -10,10 +10,6 @@ import {
   Tooltip,
   useMediaQuery,
   useTheme,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   Alert,
   Snackbar,
@@ -45,8 +41,6 @@ export default function PromptBuilder() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [promptId, setPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState('');
-  const [showTitleDialog, setShowTitleDialog] = useState(false);
-  const [saveAction, setSaveAction] = useState<'draft' | 'publish' | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -165,12 +159,16 @@ export default function PromptBuilder() {
       return;
     }
 
-    if (!promptTitle) {
-      setSaveAction('draft');
-      setShowTitleDialog(true);
-    } else {
-      handleSave('draft');
+    if (!promptTitle.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a title for your prompt',
+        severity: 'error',
+      });
+      return;
     }
+
+    handleSave('draft');
   };
 
   const submitPrompt = () => {
@@ -184,12 +182,16 @@ export default function PromptBuilder() {
       return;
     }
 
-    if (!promptTitle) {
-      setSaveAction('publish');
-      setShowTitleDialog(true);
-    } else {
-      handleSave('publish');
+    if (!promptTitle.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a title for your prompt',
+        severity: 'error',
+      });
+      return;
     }
+
+    handleSave('publish');
   };
 
   const handleSave = async (action: 'draft' | 'publish') => {
@@ -246,7 +248,6 @@ export default function PromptBuilder() {
         message: action === 'publish' ? 'Prompt published successfully!' : 'Draft saved successfully!',
         severity: 'success',
       });
-      setShowTitleDialog(false);
     } catch (error) {
       console.error('Error saving prompt:', error);
       setSnackbar({
@@ -326,7 +327,7 @@ export default function PromptBuilder() {
             sx={{ mb: 2 }}
           >
             <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight={600}>
-              Preview Mode
+              {promptTitle || 'Preview Mode'}
             </Typography>
             <Button
               variant="outlined"
@@ -350,9 +351,31 @@ export default function PromptBuilder() {
         spacing={{ xs: 2, sm: 0 }}
         mb={2}
       >
-        <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight={600}>
-          Prompt Builder
-        </Typography>
+        <TextField
+          variant="standard"
+          value={promptTitle}
+          onChange={(e) => setPromptTitle(e.target.value)}
+          placeholder="Enter prompt title..."
+          sx={{
+            '& .MuiInputBase-input': {
+              fontSize: isMobile ? '1.5rem' : '2.125rem',
+              fontWeight: 600,
+              padding: 0,
+            },
+            '& .MuiInput-root': {
+              '&:before': {
+                borderBottom: '2px solid transparent',
+              },
+              '&:hover:not(.Mui-disabled):before': {
+                borderBottom: '2px solid rgba(0, 0, 0, 0.12)',
+              },
+              '&:after': {
+                borderBottom: '2px solid',
+                borderColor: 'primary.main',
+              },
+            },
+          }}
+        />
         <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'space-between', sm: 'flex-start' }}>
           <Stack direction="row" spacing={0.5} alignItems="center">
             <IconButton
@@ -708,37 +731,6 @@ export default function PromptBuilder() {
       </Stack>
         </>
       )}
-
-      {/* Title Dialog */}
-      <Dialog open={showTitleDialog} onClose={() => setShowTitleDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {saveAction === 'publish' ? 'Publish Prompt' : 'Save Draft'}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Prompt Title"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={promptTitle}
-            onChange={(e) => setPromptTitle(e.target.value)}
-            placeholder="Enter a title for your prompt"
-            sx={{ mt: 1 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowTitleDialog(false)}>Cancel</Button>
-          <Button
-            onClick={() => saveAction && handleSave(saveAction)}
-            variant="contained"
-            disabled={!promptTitle.trim()}
-          >
-            {saveAction === 'publish' ? 'Publish' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar
