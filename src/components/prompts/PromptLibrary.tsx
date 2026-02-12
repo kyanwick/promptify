@@ -320,7 +320,7 @@ export function PromptLibrary() {
       {!loading && filteredPrompts.length > 0 && (
         <Grid container spacing={2}>
           {filteredPrompts.map((prompt) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={prompt.id}>
+            <Grid size={{ xs: 12, sm: 12, md: 6, lg: 6 }} key={prompt.id}>
               <Card
                 sx={{
                   height: '100%',

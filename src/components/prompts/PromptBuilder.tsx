@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Box,
   Paper,
@@ -38,6 +39,7 @@ interface PromptBuilderProps {
 }
 
 export default function PromptBuilder({ initialPrompt }: PromptBuilderProps = {}) {
+  const router = useRouter();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [connectionStart, setConnectionStart] = useState<string | null>(null);
@@ -295,6 +297,11 @@ export default function PromptBuilder({ initialPrompt }: PromptBuilderProps = {}
         message: action === 'publish' ? 'Prompt published successfully!' : 'Draft saved successfully!',
         severity: 'success',
       });
+      
+      // Navigate to library after a short delay to show the success message
+      setTimeout(() => {
+        router.push('/dashboard/library');
+      }, 1500);
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Error saving prompt:', error);
