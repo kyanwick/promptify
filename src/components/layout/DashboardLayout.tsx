@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
+  MenuOpen as MenuOpenIcon,
   Dashboard as DashboardIcon,
   Chat as ChatIcon,
   Logout as LogoutIcon,
@@ -35,6 +36,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PromptChatProvider } from '@/context/PromptChatContext';
 
 const drawerWidth = 260;
+const collapsedDrawerWidth = 72;
 
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, href: '/dashboard' },
@@ -44,6 +46,7 @@ const menuItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mounted, setMounted] = useState(false);
   const { mode, setMode } = useColorScheme();
@@ -57,6 +60,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleSidebarCollapseToggle = () => {
+    setIsSidebarCollapsed((prev) => !prev);
   };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -82,12 +89,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return null;
   }
 
+  const sidebarWidth = isSidebarCollapsed ? collapsedDrawerWidth : drawerWidth;
+
   const drawer = (
     <Box>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
+      <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', px: isSidebarCollapsed ? 1 : 2 }}>
+        <Typography
+          variant="h6"
+          noWrap
+          component="div"
+          sx={{ fontWeight: 700, display: isSidebarCollapsed ? 'none' : 'block' }}
+        >
           Promptify
         </Typography>
+        <IconButton
+          size="small"
+          onClick={handleSidebarCollapseToggle}
+          aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          sx={{ ml: isSidebarCollapsed ? 0 : 1 }}
+        >
+          <MenuOpenIcon
+            sx={{ transform: isSidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+          />
+        </IconButton>
       </Toolbar>
       <Divider />
       <List>
@@ -97,7 +121,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               component={Link}
               href={item.href}
               selected={pathname === item.href}
+              title={isSidebarCollapsed ? item.text : undefined}
               sx={{
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                px: isSidebarCollapsed ? 1.5 : 2,
                 '&.Mui-selected': {
                   backgroundColor: 'primary.main',
                   color: 'primary.contrastText',
@@ -110,8 +137,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 },
               }}
             >
-              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
+              <ListItemIcon sx={{ minWidth: isSidebarCollapsed ? 0 : 40, justifyContent: 'center' }}>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                sx={{ display: isSidebarCollapsed ? 'none' : 'block' }}
+              />
             </ListItemButton>
           </ListItem>
         ))}
@@ -124,8 +156,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <AppBar
         position="fixed"
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          width: { sm: `calc(100% - ${sidebarWidth}px)` },
+          ml: { sm: `${sidebarWidth}px` },
         }}
       >
         <Toolbar>
@@ -178,7 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </AppBar>
       <Box
         component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+        sx={{ width: { sm: sidebarWidth }, flexShrink: { sm: 0 } }}
       >
         <Drawer
           variant="temporary"
@@ -198,7 +230,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: sidebarWidth,
+              overflowX: 'hidden',
+            },
           }}
           open
         >
@@ -210,7 +246,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          width: { sm: `calc(100% - ${sidebarWidth}px)` },
           mt: 8,
         }}
       >
