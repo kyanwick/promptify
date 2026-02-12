@@ -10,11 +10,19 @@ export interface Node {
   hidden?: boolean; // For system messages - hidden from users but visible to AI
 }
 
+export interface Connection {
+  id: string;
+  sourceId: string; // Node ID
+  targetId: string; // Node ID
+}
+
 export interface NodeComponentProps {
   node: Node;
   onUpdate: (id: string, updates: Partial<Node>) => void;
   onDelete: (id: string) => void;
   isMobile: boolean;
+  onConnectionStart?: (nodeId: string) => void;
+  isConnecting?: boolean;
 }
 
 export interface PromptNodeDialogProps {

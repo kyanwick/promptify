@@ -1,12 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { Paper, Stack, TextField, IconButton, Typography } from '@mui/material';
+import { Paper, Stack, TextField, IconButton, Typography, Box } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Description as DescriptionIcon,
   SmartToy as SmartToyIcon,
   OpenInFull as ExpandIcon,
   Person as PersonIcon,
+  CircleOutlined as CircleIcon,
 } from '@mui/icons-material';
 import { Rnd } from 'react-rnd';
 import { NodeComponentProps } from './types';
@@ -17,6 +18,8 @@ export default function PromptNode({
   onUpdate,
   onDelete,
   isMobile,
+  onConnectionStart,
+  isConnecting,
 }: NodeComponentProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -54,11 +57,42 @@ export default function PromptNode({
             border: 2,
             borderColor: node.type === 'system' ? 'secondary.main' : node.type === 'user' ? 'info.main' : 'primary.main',
             touchAction: 'none',
+            position: 'relative',
             '&:hover': {
               boxShadow: 6,
             },
           }}
         >
+          {/* Input connection handle (top) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -8,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              cursor: isConnecting ? 'pointer' : 'default',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isConnecting && onConnectionStart) {
+                onConnectionStart(node.id);
+              }
+            }}
+          >
+            <CircleIcon
+              sx={{
+                fontSize: 16,
+                color: 'primary.main',
+                bgcolor: 'background.paper',
+                borderRadius: '50%',
+                '&:hover': {
+                  fontSize: 20,
+                },
+              }}
+            />
+          </Box>
+
           <Stack
             direction="row"
             alignItems="center"
@@ -148,6 +182,36 @@ export default function PromptNode({
             }}
             onClick={(e) => e.stopPropagation()}
           />
+          
+          {/* Output connection handle (bottom) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: -8,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              cursor: 'pointer',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onConnectionStart) {
+                onConnectionStart(node.id);
+              }
+            }}
+          >
+            <CircleIcon
+              sx={{
+                fontSize: 16,
+                color: 'primary.main',
+                bgcolor: 'background.paper',
+                borderRadius: '50%',
+                '&:hover': {
+                  fontSize: 20,
+                },
+              }}
+            />
+          </Box>
         </Paper>
       </Rnd>
 

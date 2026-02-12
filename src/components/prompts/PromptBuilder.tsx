@@ -22,10 +22,13 @@ import {
   Person as PersonIcon,
 } from '@mui/icons-material';
 import PromptNode from './PromptNode';
-import { Node } from './types';
+import NodeConnection from './NodeConnection';
+import { Node, Connection } from './types';
 
 export default function PromptBuilder() {
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [connectionStart, setConnectionStart] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null);
   const [initialZoom, setInitialZoom] = useState(1);
@@ -55,16 +58,36 @@ export default function PromptBuilder() {
 
   const deleteNode = (id: string) => {
     setNodes(nodes.filter((node) => node.id !== id));
+    // Also delete any connections involving this node
+    setConnections(connections.filter((conn) => conn.sourceId !== id && conn.targetId !== id));
+  };
+
+  const handleConnectionStart = (nodeId: string) => {
+    if (connectionStart === null) {
+      // Start connection
+      setConnectionStart(nodeId);
+    } else {
+      // Complete connection
+      if (connectionStart !== nodeId) {
+        const newConnection: Connection = {
+          id: `conn-${Date.now()}`,
+          sourceId: connectionStart,
+          targetId: nodeId,
+        };
+        setConnections([...connections, newConnection]);
+      }
+      setConnectionStart(null);
+    }
   };
 
   const saveDraft = () => {
-    console.log('Saving draft:', nodes);
+    console.log('Saving draft:', { nodes, connections });
     // TODO: Save to Supabase
     alert('Draft saved! (Check console for data)');
   };
 
   const submitPrompt = () => {
-    console.log('Submitting prompt:', nodes);
+    console.log('Submitting prompt:', { nodes, connections });
     // TODO: Process and send to AI
     alert('Prompt submitted! (Check console for data)');
   };
@@ -233,11 +256,18 @@ export default function PromptBuilder() {
           backgroundSize: isMobile ? '15px 15px' : '20px 20px',
           overflow: 'hidden',
           touchAction: 'none',
+          cursor: connectionStart ? 'crosshair' : 'default',
         }}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClick={() => {
+          // Cancel connection if clicking canvas
+          if (connectionStart) {
+            setConnectionStart(null);
+          }
+        }}
       >
         <Box
           sx={{
@@ -249,6 +279,16 @@ export default function PromptBuilder() {
             position: 'relative',
           }}
         >
+          {/* Render connections behind nodes */}
+          {connections.map((connection) => (
+            <NodeConnection
+              key={connection.id}
+              connection={connection}
+              nodes={nodes}
+              zoom={zoom}
+            />
+          ))}
+
           {nodes.map((node) => (
             <PromptNode
               key={node.id}
@@ -256,6 +296,8 @@ export default function PromptBuilder() {
               onUpdate={updateNode}
               onDelete={deleteNode}
               isMobile={isMobile}
+              onConnectionStart={handleConnectionStart}
+              isConnecting={connectionStart !== null}
             />
           ))}
 
@@ -280,6 +322,29 @@ export default function PromptBuilder() {
                 sx={{ display: { xs: 'none', sm: 'block' } }}
               >
                 Add system messages, user prompts, and AI prompts to create your workflow
+              </Typography>
+            </Box>
+          )}
+
+          {/* Connection mode indicator */}
+          {connectionStart && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                px: 3,
+                py: 1,
+                borderRadius: 2,
+                boxShadow: 3,
+                zIndex: 1000,
+              }}
+            >
+              <Typography variant="body2" fontWeight={600}>
+                Click on another node to connect • Click canvas to cancel
               </Typography>
             </Box>
           )}
