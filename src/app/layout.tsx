@@ -1,6 +1,5 @@
 import './globals.css';
 import "flatpickr/dist/flatpickr.css";
-import { SidebarProvider } from '@/context/SidebarContext';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -15,11 +14,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <InitColorSchemeScript attribute="class" />
+        <InitColorSchemeScript attribute="class" defaultMode="light" />
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <SidebarProvider>{children}</SidebarProvider>
+            {children}
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>

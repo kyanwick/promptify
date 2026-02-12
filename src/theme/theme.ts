@@ -1,35 +1,61 @@
 'use client';
 import { createTheme } from '@mui/material/styles';
 
-// Create a theme instance
+// 60-20-10 Color Rule
+// 60% Dominant: #006e61 (Teal) - Backgrounds, main sections
+// 30% Secondary: #4f2c00 (Brown) - Text, supporting elements
+// 10% Accent: #ffc600 (Gold) - CTAs, highlights
+
 const theme = createTheme({
   cssVariables: true,
+  defaultColorScheme: 'light',
+  colorSchemeSelector: 'class',
   colorSchemes: {
     light: {
       palette: {
         primary: {
-          main: '#3C50E0',
+          main: '#ffc600', // 10% accent - buttons, highlights
+          light: '#ffd633',
+          dark: '#cc9e00',
+          contrastText: '#4f2c00',
         },
         secondary: {
-          main: '#80CAEE',
+          main: '#4f2c00', // 30% secondary - supporting elements
+          light: '#7a4500',
+          dark: '#2a1800',
+          contrastText: '#ffffff',
         },
         background: {
-          default: '#F1F5F9',
-          paper: '#FFFFFF',
+          default: '#e6f5f3', // 60% dominant - light teal background
+          paper: '#ffffff',
+        },
+        text: {
+          primary: '#4f2c00', // Brown for primary text
+          secondary: '#7a4500',
         },
       },
     },
     dark: {
       palette: {
         primary: {
-          main: '#3C50E0',
+          main: '#ffc600', // 10% accent - buttons, highlights
+          light: '#ffd633',
+          dark: '#cc9e00',
+          contrastText: '#1a1a1a',
         },
         secondary: {
-          main: '#80CAEE',
+          main: '#ffd633', // Lighter gold for secondary in dark mode
+          light: '#ffe066',
+          dark: '#cc9e00',
+          contrastText: '#1a1a1a',
         },
         background: {
-          default: '#1C2434',
-          paper: '#24303F',
+          default: '#003d36', // 60% dominant - dark teal background
+          paper: '#006e61', // Medium teal for cards
+        },
+        text: {
+          primary: '#ffffff',
+          secondary: '#e6f5f3',
         },
       },
     },
@@ -43,3 +69,4 @@ const theme = createTheme({
 });
 
 export default theme;
+
