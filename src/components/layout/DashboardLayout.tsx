@@ -32,6 +32,7 @@ import { useColorScheme } from '@mui/material/styles';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { PromptChatProvider } from '@/context/PromptChatContext';
 
 const drawerWidth = 260;
 
@@ -213,7 +214,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           mt: 8,
         }}
       >
-        {children}
+        <PromptChatProvider>
+          {children}
+        </PromptChatProvider>
       </Box>
     </Box>
   );

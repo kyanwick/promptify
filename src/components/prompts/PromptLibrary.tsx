@@ -40,10 +40,12 @@ import {
   Visibility as VisibilityIcon,
   Public as PublicIcon,
   Lock as LockIcon,
+  PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import { promptService, type SavedPrompt } from '@/services/promptService';
 import PromptPreview from './PromptPreview';
 import { useRouter } from 'next/navigation';
+import { usePromptChat } from '@/context/PromptChatContext';
 
 type FilterTab = 'all' | 'draft' | 'published';
 type SortOption = 'updated' | 'created' | 'title';
@@ -52,6 +54,7 @@ export function PromptLibrary() {
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { setChatData } = usePromptChat();
 
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
   const [filteredPrompts, setFilteredPrompts] = useState<SavedPrompt[]>([]);
@@ -62,6 +65,7 @@ export function PromptLibrary() {
   const [selectedPrompt, setSelectedPrompt] = useState<SavedPrompt | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'preview' | 'fillAndChat'>('preview');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -242,12 +246,33 @@ export function PromptLibrary() {
   };
 
   const handlePreview = () => {
+    setPreviewMode('preview');
     setPreviewDialogOpen(true);
     handleMenuClose();
   };
 
   const handleCreateNew = () => {
     router.push('/dashboard/prompts/new');
+  };
+
+  const handleUseThisPrompt = () => {
+    setPreviewMode('fillAndChat');
+    setPreviewDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleFormSubmit = (responses: Record<string, string>) => {
+    if (!selectedPrompt) return;
+
+    // Save to context for the chat to access
+    setChatData({
+      prompt: selectedPrompt,
+      responses,
+    });
+
+    // Close the dialog and navigate to chat
+    setPreviewDialogOpen(false);
+    router.push('/dashboard/chat');
   };
 
   // Empty state
@@ -334,7 +359,11 @@ export function PromptLibrary() {
                     boxShadow: 4,
                   },
                 }}
-                onClick={() => router.push(`/dashboard/prompts/${prompt.id}`)}
+                onClick={() => {
+                  setSelectedPrompt(prompt);
+                  setPreviewMode('fillAndChat');
+                  setPreviewDialogOpen(true);
+                }}
               >
                 <CardContent sx={{ flex: 1, pb: 1 }}>
                   <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
@@ -413,6 +442,14 @@ export function PromptLibrary() {
 
       {/* Actions Menu */}
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+        <MenuItem onClick={handleUseThisPrompt} sx={{ bgcolor: 'primary.lighter' }}>
+          <ListItemIcon>
+            <PlayArrowIcon fontSize="small" sx={{ color: 'primary.main' }} />
+          </ListItemIcon>
+          <ListItemText sx={{ color: 'primary.main' }}>
+            <strong>Use This Prompt</strong>
+          </ListItemText>
+        </MenuItem>
         <MenuItem onClick={handleEdit}>
           <ListItemIcon>
             <EditIcon fontSize="small" />
@@ -469,18 +506,23 @@ export function PromptLibrary() {
         fullWidth
         fullScreen={isMobile}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ bgcolor: previewMode === 'fillAndChat' ? 'background.default' : 'transparent' }}>
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography variant="h6">Preview</Typography>
+            <Typography variant="h6">{previewMode === 'fillAndChat' ? 'Fill & Chat' : 'Preview'}</Typography>
             <Typography variant="body2" color="text.secondary">
               {selectedPrompt?.title}
             </Typography>
           </Stack>
         </DialogTitle>
-        <DialogContent>
-          {selectedPrompt && <PromptPreview nodes={selectedPrompt.nodes} />}
+        <DialogContent sx={{ bgcolor: previewMode === 'fillAndChat' ? 'background.default' : 'transparent' }}>
+          {selectedPrompt && (
+            <PromptPreview
+              nodes={selectedPrompt.nodes}
+              onSubmit={previewMode === 'fillAndChat' ? handleFormSubmit : undefined}
+            />
+          )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ bgcolor: previewMode === 'fillAndChat' ? 'background.default' : 'transparent' }}>
           <Button onClick={() => setPreviewDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>

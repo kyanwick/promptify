@@ -19,9 +19,11 @@ import type { Node } from './types';
 
 interface PromptPreviewProps {
   nodes: Node[];
+  onFormChange?: (responses: Record<string, string>) => void;
+  onSubmit?: (responses: Record<string, string>) => void;
 }
 
-const PromptPreview: React.FC<PromptPreviewProps> = ({ nodes }) => {
+const PromptPreview: React.FC<PromptPreviewProps> = ({ nodes, onFormChange, onSubmit }) => {
   // Get only user-facing prompts (exclude system messages)
   const userPrompts = nodes.filter((node) => node.type === 'user');
   
@@ -30,10 +32,12 @@ const PromptPreview: React.FC<PromptPreviewProps> = ({ nodes }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
   const handleResponseChange = (nodeId: string, value: string) => {
-    setResponses((prev) => ({
-      ...prev,
+    const newResponses = {
+      ...responses,
       [nodeId]: value,
-    }));
+    };
+    setResponses(newResponses);
+    onFormChange?.(newResponses);
   };
 
   const handleNext = () => {
@@ -49,8 +53,7 @@ const PromptPreview: React.FC<PromptPreviewProps> = ({ nodes }) => {
   };
 
   const handleSubmit = () => {
-    console.log('User responses:', responses);
-    // TODO: Submit responses
+    onSubmit?.(responses);
   };
 
   if (userPrompts.length === 0) {
