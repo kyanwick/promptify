@@ -4,15 +4,12 @@ import {
   Card,
   TextField,
   IconButton,
-  Paper,
   Typography,
   Stack,
-  Avatar,
-  Chip,
   Collapse,
 } from '@mui/material';
-import { Send as SendIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
-import { useState, useEffect } from 'react';
+import { Send as SendIcon, ExpandMore as ExpandMoreIcon, Stop as StopIcon } from '@mui/icons-material';
+import { useState, useEffect, useRef } from 'react';
 import { usePromptChat } from '@/context/PromptChatContext';
 import { SavedPrompt } from '@/services/promptService';
 
@@ -34,6 +31,9 @@ export default function ChatPage() {
   const [currentPrompt, setCurrentPrompt] = useState<SavedPrompt | null>(null);
   const [currentResponses, setCurrentResponses] = useState<Record<string, string>>({});
   const [payloadMessage, setPayloadMessage] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load prompt data from context on mount
   useEffect(() => {
@@ -69,14 +69,20 @@ export default function ChatPage() {
     }
   }, [chatData, clearChatData]);
 
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   const handleSend = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isGenerating) return;
 
     setMessages([...messages, { role: 'user', content: input }]);
     setInput('');
+    setIsGenerating(true);
 
     // Simulate AI response
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       setMessages((prev) => [
         ...prev,
         {
@@ -84,7 +90,19 @@ export default function ChatPage() {
           content: 'This is a placeholder response. Connect your AI service here!',
         },
       ]);
+      setIsGenerating(false);
+      timeoutIdRef.current = null;
     }, 1000);
+
+    timeoutIdRef.current = timeout;
+  };
+
+  const handleStop = () => {
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+    setIsGenerating(false);
   };
 
   return (
@@ -94,17 +112,16 @@ export default function ChatPage() {
       </Typography>
 
       <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column', mb: 2 }}>
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-          <Stack spacing={2}>
+        <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
+          <Stack spacing={4}>
             {messages.map((message, index) => {
               const isPromptMessage = index === 0 && message.role === 'user' && message.content.startsWith('Following prompt:');
               
               if (isPromptMessage && currentPrompt) {
                 return (
-                  <Box key={index} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Box key={index}>
                     <Card
                       sx={{
-                        maxWidth: '70%',
                         bgcolor: 'background.paper',
                         border: '1px solid',
                         borderColor: 'divider',
@@ -182,33 +199,59 @@ export default function ChatPage() {
               }
 
               return (
-                <Box
-                  key={index}
-                  sx={{
-                    display: 'flex',
-                    justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ maxWidth: '70%' }}>
-                    {message.role === 'assistant' && (
-                      <Avatar sx={{ bgcolor: 'primary.main' }}>AI</Avatar>
-                    )}
-                    <Paper
+                <Box key={index} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {message.role === 'user' ? (
+                    <Box
                       sx={{
-                        p: 2,
-                        bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
-                        color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                        display: 'flex',
+                        justifyContent: 'flex-end',
                       }}
                     >
-                      <Typography variant="body1">{message.content}</Typography>
-                    </Paper>
-                    {message.role === 'user' && (
-                      <Avatar sx={{ bgcolor: 'secondary.main' }}>U</Avatar>
-                    )}
-                  </Stack>
+                      <Box
+                        sx={{
+                          maxWidth: '70%',
+                          p: 2,
+                          bgcolor: 'primary.main',
+                          color: 'primary.contrastText',
+                          borderRadius: 1,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        <Typography variant="body1" color="inherit">{message.content}</Typography>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          color: 'success.main',
+                        }}
+                      >
+                        AI Assistant
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          lineHeight: 1.8,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          color: 'text.primary',
+                        }}
+                      >
+                        {message.content}
+                      </Typography>
+                    </>
+                  )}
                 </Box>
               );
             })}
+            <div ref={messagesEndRef} />
           </Stack>
         </Box>
 
@@ -220,17 +263,24 @@ export default function ChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !isGenerating) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
               multiline
               maxRows={4}
+              disabled={isGenerating}
             />
-            <IconButton color="primary" onClick={handleSend} disabled={!input.trim()}>
-              <SendIcon />
-            </IconButton>
+            {isGenerating ? (
+              <IconButton color="error" onClick={handleStop} title="Stop generating">
+                <StopIcon />
+              </IconButton>
+            ) : (
+              <IconButton color="primary" onClick={handleSend} disabled={!input.trim()}>
+                <SendIcon />
+              </IconButton>
+            )}
           </Stack>
         </Box>
       </Card>
