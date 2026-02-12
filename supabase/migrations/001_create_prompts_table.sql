@@ -5,9 +5,11 @@ CREATE TABLE IF NOT EXISTS prompts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
+  emoji TEXT DEFAULT '📝',
   nodes JSONB NOT NULL DEFAULT '[]'::jsonb,
   connections JSONB NOT NULL DEFAULT '[]'::jsonb,
   status TEXT NOT NULL CHECK (status IN ('draft', 'published')),
+  is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -16,6 +18,7 @@ CREATE TABLE IF NOT EXISTS prompts (
 CREATE INDEX IF NOT EXISTS prompts_user_id_idx ON prompts(user_id);
 CREATE INDEX IF NOT EXISTS prompts_status_idx ON prompts(status);
 CREATE INDEX IF NOT EXISTS prompts_updated_at_idx ON prompts(updated_at DESC);
+CREATE INDEX IF NOT EXISTS prompts_is_public_idx ON prompts(is_public) WHERE is_public = TRUE;
 
 -- Enable Row Level Security
 ALTER TABLE prompts ENABLE ROW LEVEL SECURITY;
@@ -26,6 +29,12 @@ CREATE POLICY "Users can view their own prompts"
   ON prompts
   FOR SELECT
   USING (auth.uid() = user_id);
+
+-- Anyone can view public prompts (even without authentication)
+CREATE POLICY "Anyone can view public prompts"
+  ON prompts
+  FOR SELECT
+  USING (is_public = TRUE);
 
 -- Users can insert their own prompts
 CREATE POLICY "Users can create their own prompts"

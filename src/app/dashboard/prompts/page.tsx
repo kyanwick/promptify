@@ -1,5 +1,5 @@
-import PromptBuilder from '@/components/prompts';
+import { redirect } from 'next/navigation';
 
-export default function PromptBuilderPage() {
-  return <PromptBuilder />;
+export default function PromptsPage() {
+  redirect('/dashboard/library');
 }

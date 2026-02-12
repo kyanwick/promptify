@@ -13,6 +13,8 @@ import {
   TextField,
   Alert,
   Snackbar,
+  Popover,
+  Grid,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -29,9 +31,13 @@ import PromptNode from './PromptNode';
 import NodeConnection from './NodeConnection';
 import PromptPreview from './PromptPreview';
 import { Node, Connection } from './types';
-import { promptService } from '@/services/promptService';
+import { promptService, type SavedPrompt } from '@/services/promptService';
 
-export default function PromptBuilder() {
+interface PromptBuilderProps {
+  initialPrompt?: SavedPrompt;
+}
+
+export default function PromptBuilder({ initialPrompt }: PromptBuilderProps = {}) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [connectionStart, setConnectionStart] = useState<string | null>(null);
@@ -41,6 +47,8 @@ export default function PromptBuilder() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [promptId, setPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState('');
+  const [promptEmoji, setPromptEmoji] = useState('📝');
+  const [emojiAnchorEl, setEmojiAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -50,12 +58,24 @@ export default function PromptBuilder() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // Initialize from existing prompt if provided
+  useEffect(() => {
+    if (initialPrompt) {
+      setPromptId(initialPrompt.id);
+      setPromptTitle(initialPrompt.title);
+      setPromptEmoji(initialPrompt.emoji || '📝');
+      setNodes(initialPrompt.nodes);
+      setConnections(initialPrompt.connections);
+      setHasUnsavedChanges(false); // Starting with saved data
+    }
+  }, [initialPrompt]);
+
   // Track unsaved changes
   useEffect(() => {
-    if (nodes.length > 0 || connections.length > 0 || promptTitle.trim()) {
+    if (nodes.length > 0 || connections.length > 0 || promptTitle.trim() || promptEmoji !== '📝') {
       setHasUnsavedChanges(true);
     }
-  }, [nodes, connections, promptTitle]);
+  }, [nodes, connections, promptTitle, promptEmoji]);
 
   // Warn user before leaving with unsaved changes
   useEffect(() => {
@@ -243,12 +263,14 @@ export default function PromptBuilder() {
         if (action === 'publish') {
           await promptService.publish(promptId, {
             title: promptTitle,
+            emoji: promptEmoji,
             nodes,
             connections,
           });
         } else {
           await promptService.updatePrompt(promptId, {
             title: promptTitle,
+            emoji: promptEmoji,
             nodes,
             connections,
             status: 'draft',
@@ -258,6 +280,7 @@ export default function PromptBuilder() {
         // Create new prompt
         const result = await promptService.saveDraft({
           title: promptTitle,
+          emoji: promptEmoji,
           nodes,
           connections,
           status: action === 'publish' ? 'published' : 'draft',
@@ -377,31 +400,53 @@ export default function PromptBuilder() {
         mb={2}
       >
         <Box>
-          <TextField
-            variant="standard"
-            value={promptTitle}
-            onChange={(e) => setPromptTitle(e.target.value)}
-            placeholder="Enter prompt title..."
-            sx={{
-              '& .MuiInputBase-input': {
-                fontSize: isMobile ? '1.5rem' : '2.125rem',
-                fontWeight: 600,
-                padding: 0,
-              },
-              '& .MuiInput-root': {
-                '&:before': {
-                  borderBottom: '2px solid transparent',
-                },
-                '&:hover:not(.Mui-disabled):before': {
-                  borderBottom: '2px solid rgba(0, 0, 0, 0.12)',
-                },
-                '&:after': {
-                  borderBottom: '2px solid',
-                  borderColor: 'primary.main',
-                },
-              },
-            }}
-          />
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Tooltip title="Click to change emoji">
+              <Button
+                onClick={(e) => setEmojiAnchorEl(e.currentTarget)}
+                sx={{
+                  fontSize: isMobile ? '1.5rem' : '2rem',
+                  minWidth: '3rem',
+                  width: '3rem',
+                  height: '3rem',
+                  p: 0,
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                {promptEmoji}
+              </Button>
+            </Tooltip>
+            <Box flex={1}>
+              <TextField
+                variant="standard"
+                value={promptTitle}
+                onChange={(e) => setPromptTitle(e.target.value)}
+                placeholder="Enter prompt title..."
+                sx={{
+                  width: '100%',
+                  '& .MuiInputBase-input': {
+                    fontSize: isMobile ? '1.5rem' : '2.125rem',
+                    fontWeight: 600,
+                    padding: 0,
+                  },
+                  '& .MuiInput-root': {
+                    '&:before': {
+                      borderBottom: '2px solid transparent',
+                    },
+                    '&:hover:not(.Mui-disabled):before': {
+                      borderBottom: '2px solid rgba(0, 0, 0, 0.12)',
+                    },
+                    '&:after': {
+                      borderBottom: '2px solid',
+                      borderColor: 'primary.main',
+                    },
+                  },
+                }}
+              />
+            </Box>
+          </Stack>
           {hasUnsavedChanges && (
             <Typography
               variant="caption"
@@ -788,6 +833,60 @@ export default function PromptBuilder() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Emoji Picker Popover */}
+      <Popover
+        open={Boolean(emojiAnchorEl)}
+        anchorEl={emojiAnchorEl}
+        onClose={() => setEmojiAnchorEl(null)}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Choose an emoji:
+          </Typography>
+          <Grid container spacing={1} sx={{ width: 280 }}>
+            {[
+              '📝', '💡', '❓', '✅', '⚙️', '🎯', '📊', '💬', '📚', '🚀', '⭐', '🔥',
+              '💰', '🎨', '📱', '🖥️', '🌍', '👤', '👥', '📧', '🔗', '📊', '⏱️', '📅',
+              '🎓', '📖', '✏️', '🖊️', '📋', '🗂️', '📈', '🎬', '🎵', '🎮', '🏆', '🎁',
+            ].map((emoji) => (
+              <Box
+                key={emoji}
+                onClick={() => {
+                  setPromptEmoji(emoji);
+                  setEmojiAnchorEl(null);
+                }}
+                sx={{
+                  width: '2.5rem',
+                  height: '2.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  borderRadius: 1,
+                  border: promptEmoji === emoji ? '2px solid' : '2px solid transparent',
+                  borderColor: promptEmoji === emoji ? 'primary.main' : 'transparent',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                    borderColor: 'primary.main',
+                  },
+                }}
+              >
+                {emoji}
+              </Box>
+            ))}
+          </Grid>
+        </Box>
+      </Popover>
     </Box>
   );
 }

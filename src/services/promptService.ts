@@ -5,25 +5,31 @@ export interface SavedPrompt {
   id: string;
   user_id: string;
   title: string;
+  emoji: string;
   nodes: Node[];
   connections: Connection[];
   status: 'draft' | 'published';
+  is_public: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreatePromptData {
   title: string;
+  emoji?: string;
   nodes: Node[];
   connections: Connection[];
   status: 'draft' | 'published';
+  is_public?: boolean;
 }
 
 export interface UpdatePromptData {
   title?: string;
+  emoji?: string;
   nodes?: Node[];
   connections?: Connection[];
   status?: 'draft' | 'published';
+  is_public?: boolean;
 }
 
 export class PromptService {
@@ -181,6 +187,66 @@ export class PromptService {
       return true;
     } catch (error) {
       console.error('Error deleting prompt:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Duplicate a prompt (creates a copy with "Copy of" prefix)
+   */
+  async duplicatePrompt(id: string): Promise<SavedPrompt | null> {
+    try {
+      // First get the original prompt
+      const original = await this.getPrompt(id);
+      if (!original) {
+        console.error('Prompt not found');
+        return null;
+      }
+
+      // Create a copy with modified title
+      const { data: duplicate, error } = await this.supabase
+        .from('prompts')
+        .insert({
+          title: `Copy of ${original.title}`,
+          emoji: original.emoji,
+          nodes: original.nodes,
+          connections: original.connections,
+          status: 'draft', // Always create duplicates as drafts
+          is_public: false, // Never make duplicates public automatically
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error duplicating prompt:', error);
+        return null;
+      }
+
+      return duplicate;
+    } catch (error) {
+      console.error('Error duplicating prompt:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Toggle the public status of a prompt
+   */
+  async togglePublic(id: string, isPublic: boolean): Promise<boolean> {
+    try {
+      const { error } = await this.supabase
+        .from('prompts')
+        .update({ is_public: isPublic })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error toggling public status:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error toggling public status:', error);
       return false;
     }
   }

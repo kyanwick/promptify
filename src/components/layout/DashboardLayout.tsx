@@ -26,7 +26,7 @@ import {
   Settings as SettingsIcon,
   Brightness4,
   Brightness7,
-  GridOn as GridOnIcon,
+  LibraryBooks as LibraryBooksIcon,
 } from '@mui/icons-material';
 import { useColorScheme } from '@mui/material/styles';
 import { usePathname, useRouter } from 'next/navigation';
@@ -37,7 +37,7 @@ const drawerWidth = 260;
 
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, href: '/dashboard' },
-  { text: 'Prompt Builder', icon: <GridOnIcon />, href: '/dashboard/prompts' },
+  { text: 'Library', icon: <LibraryBooksIcon />, href: '/dashboard/library' },
   { text: 'Chat', icon: <ChatIcon />, href: '/dashboard/chat' },
 ];
 
