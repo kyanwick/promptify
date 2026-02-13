@@ -20,6 +20,8 @@ import {
   IconButton,
   Alert,
   CircularProgress,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -30,6 +32,7 @@ import {
 import { useState, useEffect } from 'react';
 import { UserAPIKeyService, type StoredAPIKey } from '@/services/userAPIKeyService';
 import type { AIProvider } from '@/services/ai/types';
+import { useUserId } from '@/hooks/useUserId';
 
 interface APIKeyFormData {
   provider: AIProvider;
@@ -44,6 +47,7 @@ const PROVIDERS: { label: string; value: AIProvider }[] = [
 ];
 
 export default function APIKeysTab() {
+  const { userId, loading: userIdLoading } = useUserId();
   const [storedKeys, setStoredKeys] = useState<StoredAPIKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,18 +63,20 @@ export default function APIKeysTab() {
   const apiKeyService = new UserAPIKeyService();
 
   useEffect(() => {
-    loadAPIKeys();
-  }, []);
+    if (!userIdLoading && userId) {
+      loadAPIKeys();
+    }
+  }, [userId, userIdLoading]);
 
   const loadAPIKeys = async () => {
+    if (!userId) {
+      setError('User not authenticated');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const userId = localStorage.getItem('userId') || '';
-      if (!userId) {
-        setError('User not authenticated');
-        return;
-      }
-
       const keys = await apiKeyService.listAPIKeys(userId);
       setStoredKeys(keys);
     } catch (err) {
@@ -91,6 +97,11 @@ export default function APIKeysTab() {
   };
 
   const handleSaveAPIKey = async () => {
+    if (!userId) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       if (!formData.apiKey.trim()) {
         setError('API key is required');
@@ -98,7 +109,6 @@ export default function APIKeysTab() {
       }
 
       setLoading(true);
-      const userId = localStorage.getItem('userId') || '';
 
       await apiKeyService.saveAPIKey(
         userId,
@@ -118,9 +128,13 @@ export default function APIKeysTab() {
   };
 
   const handleDeleteAPIKey = async (provider: AIProvider) => {
+    if (!userId) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       setLoading(true);
-      const userId = localStorage.getItem('userId') || '';
 
       await apiKeyService.deleteAPIKey(userId, provider);
 
@@ -258,22 +272,24 @@ export default function APIKeysTab() {
         <DialogTitle>Add API Key</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
-            <TextField
-              select
-              label="Provider"
-              value={formData.provider}
-              onChange={(e) =>
-                setFormData({ ...formData, provider: e.target.value as AIProvider })
-              }
-              SelectProps={{ native: true }}
-              fullWidth
-            >
-              {PROVIDERS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </TextField>
+            <Box>
+              <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+                Provider
+              </Typography>
+              <Select
+                value={formData.provider}
+                onChange={(e) =>
+                  setFormData({ ...formData, provider: e.target.value as AIProvider })
+                }
+                fullWidth
+              >
+                {PROVIDERS.map((p) => (
+                  <MenuItem key={p.value} value={p.value}>
+                    {p.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Box>
 
             <TextField
               label="Key Name (Optional)"

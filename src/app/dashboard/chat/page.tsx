@@ -17,6 +17,7 @@ import { usePromptChat } from '@/context/PromptChatContext';
 import { SavedPrompt } from '@/services/promptService';
 import { UserAPIKeyService } from '@/services/userAPIKeyService';
 import type { AIProvider } from '@/services/ai/types';
+import { useUserId } from '@/hooks/useUserId';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -33,6 +34,7 @@ interface RateLimitInfo {
 }
 
 export default function ChatPage() {
+  const { userId, loading: userIdLoading } = useUserId();
   const { chatData, clearChatData } = usePromptChat();
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -49,7 +51,6 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
   const [selectedConfig, setSelectedConfig] = useState('openai:gpt-3.5-turbo');
-  const [userId, setUserId] = useState<string>('');
   const [availableProviders, setAvailableProviders] = useState<Array<{ provider: AIProvider; models: string[] }>>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -58,13 +59,10 @@ export default function ChatPage() {
 
   // Initialize userId on mount and load available providers
   useEffect(() => {
-    const id = localStorage.getItem('userId') || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    setUserId(id);
-    localStorage.setItem('userId', id);
-
-    // Load available providers from database
-    loadAvailableProviders(id);
-  }, []);
+    if (!userIdLoading && userId) {
+      loadAvailableProviders(userId);
+    }
+  }, [userId, userIdLoading]);
 
   const loadAvailableProviders = async (userId: string) => {
     try {

@@ -14,8 +14,10 @@ import {
 } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useState } from 'react';
+import { useUserId } from '@/hooks/useUserId';
 
 export default function AccountTab() {
+  const { userId } = useUserId();
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -34,6 +36,11 @@ export default function AccountTab() {
   };
 
   const handleDeleteAccount = async () => {
+    if (!userId) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       if (deleteConfirmText !== 'DELETE MY ACCOUNT') {
         setError('Please type "DELETE MY ACCOUNT" to confirm');
@@ -41,12 +48,6 @@ export default function AccountTab() {
       }
 
       setIsDeleting(true);
-
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
-        setError('User not authenticated');
-        return;
-      }
 
       // Call delete account endpoint
       const response = await fetch('/api/account/delete', {

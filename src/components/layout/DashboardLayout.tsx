@@ -34,6 +34,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { PromptChatProvider } from '@/context/PromptChatContext';
+import { useUserId } from '@/hooks/useUserId';
 
 const drawerWidth = 260;
 const collapsedDrawerWidth = 72;
@@ -49,6 +50,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string>('');
+  const { userId } = useUserId();
   const { mode, setMode } = useColorScheme();
   const pathname = usePathname();
   const router = useRouter();
@@ -57,6 +60,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (userId) {
+      loadUserAvatar();
+    }
+  }, [userId]);
+
+  const loadUserAvatar = () => {
+    if (userId) {
+      const savedAvatar = localStorage.getItem(`userAvatar_${userId}`);
+      if (savedAvatar) {
+        setUserAvatar(savedAvatar);
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Listen for avatar updates from settings
+    const handleAvatarUpdate = () => {
+      if (userId) {
+        loadUserAvatar();
+      }
+    };
+
+    window.addEventListener('avatarUpdated', handleAvatarUpdate);
+    return () => window.removeEventListener('avatarUpdated', handleAvatarUpdate);
+  }, [userId]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -177,7 +207,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
           <IconButton color="inherit" onClick={handleProfileMenuOpen}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>U</Avatar>
+            <Avatar 
+              src={userAvatar || undefined}
+              sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}
+            >
+              {!userAvatar && 'U'}
+            </Avatar>
           </IconButton>
           <Menu
             anchorEl={anchorEl}

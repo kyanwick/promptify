@@ -13,6 +13,8 @@ import {
 } from '@mui/material';
 import { Upload as UploadIcon } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
+import { UserProfileService } from '@/services/userProfileService';
+import { useUserId } from '@/hooks/useUserId';
 
 interface UserProfile {
   id: string;
@@ -21,6 +23,7 @@ interface UserProfile {
 }
 
 export default function ProfileTab() {
+  const { userId, loading: userIdLoading } = useUserId();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,35 +31,61 @@ export default function ProfileTab() {
   const [success, setSuccess] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState<string>('');
+  const profileService = new UserProfileService();
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (!userIdLoading && userId) {
+      loadProfile();
+    }
+  }, [userId, userIdLoading]);
 
   const loadProfile = async () => {
+    if (!userId) {
+      setError('User not found');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const userId = localStorage.getItem('userId') || '';
-      if (!userId) {
-        setError('User not found');
-        return;
-      }
 
-      // In a real app, fetch from API
-      // For now, load from localStorage
-      const savedProfile = localStorage.getItem(`profile_${userId}`);
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        setProfile(parsed);
-        setName(parsed.name || '');
-        setAvatar(parsed.avatar || '');
-      } else {
-        setProfile({
-          id: userId,
-          name: `User ${userId.slice(0, 8)}`,
-          avatar: '',
-        });
-        setName(`User ${userId.slice(0, 8)}`);
+      // Try to fetch from Supabase
+      try {
+        const fetchedProfile = await profileService.getProfile(userId);
+        if (fetchedProfile) {
+          setProfile({
+            id: fetchedProfile.id,
+            name: fetchedProfile.name || '',
+            avatar: fetchedProfile.avatar || '',
+          });
+          setName(fetchedProfile.name || '');
+          setAvatar(fetchedProfile.avatar || '');
+        } else {
+          // No profile yet, create default
+          setProfile({
+            id: userId,
+            name: `User ${userId.slice(0, 8)}`,
+            avatar: '',
+          });
+          setName(`User ${userId.slice(0, 8)}`);
+        }
+      } catch (dbError) {
+        // Fallback to localStorage if Supabase fails
+        console.warn('Failed to load from Supabase, using fallback:', dbError);
+        const savedProfile = localStorage.getItem(`profile_${userId}`);
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+          setProfile(parsed);
+          setName(parsed.name || '');
+          setAvatar(parsed.avatar || '');
+        } else {
+          setProfile({
+            id: userId,
+            name: `User ${userId.slice(0, 8)}`,
+            avatar: '',
+          });
+          setName(`User ${userId.slice(0, 8)}`);
+        }
       }
     } catch (err) {
       setError('Failed to load profile');
@@ -77,9 +106,13 @@ export default function ProfileTab() {
   };
 
   const handleSave = async () => {
+    if (!userId) {
+      setError('User not found');
+      return;
+    }
+
     try {
       setSaving(true);
-      const userId = localStorage.getItem('userId') || '';
 
       const updatedProfile = {
         id: userId,
@@ -87,10 +120,28 @@ export default function ProfileTab() {
         avatar,
       };
 
-      // Save to localStorage for now (replace with API call)
-      localStorage.setItem(`profile_${userId}`, JSON.stringify(updatedProfile));
+      // Save to Supabase
+      try {
+        await profileService.saveProfile(userId, updatedProfile.name, avatar || undefined);
+      } catch (dbError) {
+        // Fallback: save to localStorage
+        console.warn('Failed to save to Supabase, using fallback:', dbError);
+        localStorage.setItem(`profile_${userId}`, JSON.stringify(updatedProfile));
+      }
+
+      // Also save avatar to a global key for easy access by the layout
+      if (avatar) {
+        localStorage.setItem(`userAvatar_${userId}`, avatar);
+      } else {
+        localStorage.removeItem(`userAvatar_${userId}`);
+      }
+
       setProfile(updatedProfile);
       setSuccess('Profile updated successfully!');
+
+      // Trigger a storage event to update avatar in real-time
+      window.dispatchEvent(new Event('avatarUpdated'));
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError('Failed to save profile');
