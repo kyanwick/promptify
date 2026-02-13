@@ -18,6 +18,7 @@ import { SavedPrompt } from '@/services/promptService';
 import { UserAPIKeyService } from '@/services/userAPIKeyService';
 import type { AIProvider } from '@/services/ai/types';
 import { useUserId } from '@/hooks/useUserId';
+import { modelService } from '@/services/modelService';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -50,7 +51,7 @@ export default function ChatPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
-  const [selectedConfig, setSelectedConfig] = useState('openai:gpt-3.5-turbo');
+  const [selectedConfig, setSelectedConfig] = useState('');
   const [availableProviders, setAvailableProviders] = useState<Array<{ provider: AIProvider; models: string[] }>>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,21 +69,22 @@ export default function ChatPage() {
     try {
       const apiKeyService = new UserAPIKeyService();
       const providers = await apiKeyService.getAvailableProviders(userId);
-      
-      // Map providers to their available models
-      const providerModels = providers.map((provider) => {
-        const models = getModelsByProvider(provider);
-        return { provider, models };
-      });
-      
+
+      // Fetch latest models for each provider (with API key for dynamic fetching)
+      const providerModels = await Promise.all(
+        providers.map(async (provider) => {
+          const models = await modelService.getLatestModels(provider, userId);
+          return { provider, models };
+        })
+      );
+
       setAvailableProviders(providerModels);
-      
+
       // Set first available config if exists
-      if (providers.length > 0) {
-        const firstProvider = providers[0];
-        const firstModels = getModelsByProvider(firstProvider);
-        if (firstModels.length > 0) {
-          setSelectedConfig(`${firstProvider}:${firstModels[0]}`);
+      if (providerModels.length > 0) {
+        const firstProvider = providerModels[0];
+        if (firstProvider.models.length > 0) {
+          setSelectedConfig(`${firstProvider.provider}:${firstProvider.models[0]}`);
         }
       }
     } catch (err) {
@@ -98,16 +100,6 @@ export default function ChatPage() {
       local: 'Local',
     };
     return labels[provider] || provider;
-  };
-
-  const getModelsByProvider = (provider: AIProvider): string[] => {
-    const modelMap: Record<AIProvider, string[]> = {
-      openai: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'],
-      anthropic: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku'],
-      google: ['gemini-pro'],
-      local: ['local-model'],
-    };
-    return modelMap[provider] || [];
   };
 
   // Auto-scroll to bottom
