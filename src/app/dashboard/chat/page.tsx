@@ -10,6 +10,7 @@ import {
   Alert,
   Select,
   MenuItem,
+  Button,
 } from '@mui/material';
 import { Send as SendIcon, ExpandMore as ExpandMoreIcon, Stop as StopIcon } from '@mui/icons-material';
 import { useState, useEffect, useRef } from 'react';
@@ -19,6 +20,7 @@ import { UserAPIKeyService } from '@/services/userAPIKeyService';
 import type { AIProvider } from '@/services/ai/types';
 import { useUserId } from '@/hooks/useUserId';
 import { modelService } from '@/services/modelService';
+import { useRouter } from 'next/navigation';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -35,6 +37,7 @@ interface RateLimitInfo {
 }
 
 export default function ChatPage() {
+  const router = useRouter();
   const { userId, loading: userIdLoading } = useUserId();
   const { chatData, clearChatData } = usePromptChat();
   const [messages, setMessages] = useState<Message[]>([
@@ -67,28 +70,52 @@ export default function ChatPage() {
 
   const loadAvailableProviders = async (userId: string) => {
     try {
+      console.log('[Chat] Loading providers for userId:', userId);
       const apiKeyService = new UserAPIKeyService();
       const providers = await apiKeyService.getAvailableProviders(userId);
+      console.log('[Chat] Available providers from DB:', providers);
 
       // Fetch latest models for each provider (with API key for dynamic fetching)
       const providerModels = await Promise.all(
         providers.map(async (provider) => {
           const models = await modelService.getLatestModels(provider, userId);
+          console.log(`[Chat] Models for ${provider}:`, models);
           return { provider, models };
         })
       );
 
+      console.log('[Chat] Provider models loaded:', providerModels);
       setAvailableProviders(providerModels);
 
-      // Set first available config if exists
-      if (providerModels.length > 0) {
+      // Try to load last used config from localStorage
+      const lastUsedConfig = localStorage.getItem('lastUsedProviderModel');
+      let configSet = false;
+
+      if (lastUsedConfig && providerModels.length > 0) {
+        // Check if last used config is still available
+        const [lastProvider, lastModel] = lastUsedConfig.split(':');
+        const providerExists = providerModels.find(
+          (p) => p.provider === lastProvider && p.models.includes(lastModel)
+        );
+        
+        if (providerExists) {
+          setSelectedConfig(lastUsedConfig);
+          configSet = true;
+          console.log('[Chat] Restored last used config:', lastUsedConfig);
+        }
+      }
+
+      // If no last used config or it's not available, set first available
+      if (!configSet && providerModels.length > 0) {
         const firstProvider = providerModels[0];
         if (firstProvider.models.length > 0) {
-          setSelectedConfig(`${firstProvider.provider}:${firstProvider.models[0]}`);
+          const firstConfig = `${firstProvider.provider}:${firstProvider.models[0]}`;
+          setSelectedConfig(firstConfig);
+          console.log('[Chat] Set first available config:', firstConfig);
         }
       }
     } catch (err) {
-      console.error('Failed to load available providers', err);
+      console.error('[Chat] Failed to load available providers', err);
     }
   };
 
@@ -146,12 +173,19 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Save selected provider/model to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedConfig) {
+      localStorage.setItem('lastUsedProviderModel', selectedConfig);
+    }
+  }, [selectedConfig]);
+
   const handleSend = async () => {
     if (!input.trim() || isGenerating || !userId) return;
 
     // Check if user has configured an API key
     if (availableProviders.length === 0) {
-      setError('Please configure your API key in Settings first.');
+      setError('No API keys configured. Please add your API keys in Settings (click your avatar → Settings → API Keys tab).');
       return;
     }
 
@@ -165,6 +199,8 @@ export default function ChatPage() {
     try {
       // Parse config: "provider:model"
       const [provider, model] = selectedConfig.split(':');
+
+      console.log('[Chat] Sending message:', { provider, model, userId, messageCount: messages.length + 1 });
 
       // Create abort controller for streaming
       abortControllerRef.current = new AbortController();
@@ -214,6 +250,8 @@ export default function ChatPage() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
+      console.log('[Chat] Starting to read stream');
+
       if (!reader) {
         throw new Error('No response body');
       }
@@ -255,7 +293,8 @@ export default function ChatPage() {
                   return updated;
                 });
               }
-            } catch {
+            } catch (parseError) {
+              console.log('[Chat] Failed to parse line:', line, parseError);
               // Skip unparseable lines
             }
           }
@@ -264,6 +303,7 @@ export default function ChatPage() {
 
       setIsGenerating(false);
     } catch (err: any) {
+      console.error('[Chat] Error in handleSend:', err);
       if (err.name !== 'AbortError') {
         setError(err instanceof Error ? err.message : 'Failed to send message');
       }
@@ -297,9 +337,27 @@ export default function ChatPage() {
         </Alert>
       )}
 
+      {!userIdLoading && availableProviders.length === 0 && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 2 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={() => router.push('/dashboard/settings')}
+            >
+              Go to Settings
+            </Button>
+          }
+        >
+          No API keys configured. Please add your API keys in Settings (Avatar → Settings → API Keys tab).
+        </Alert>
+      )}
+
       <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column', mb: 2 }}>
-        <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-          <Stack spacing={4}>
+        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, sm: 4 } }}>
+          <Stack spacing={{ xs: 2, sm: 4 }}>
             {messages.map((message, index) => {
               const isPromptMessage = index === 0 && message.role === 'user' && message.content.startsWith('Following prompt:');
               
@@ -313,11 +371,15 @@ export default function ChatPage() {
                         borderColor: 'divider',
                       }}
                     >
-                      <Box sx={{ p: 2 }}>
+                      <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
                         <Stack direction="row" spacing={1} alignItems="center" mb={1}>
                           <Typography variant="h5">{currentPrompt.emoji}</Typography>
                           <Box flex={1}>
-                            <Typography variant="subtitle1" fontWeight={600}>
+                            <Typography 
+                              variant="subtitle1" 
+                              fontWeight={600}
+                              sx={{ fontSize: { xs: '1rem', sm: '1.125rem' } }}
+                            >
                               {currentPrompt.title}
                             </Typography>
                           </Box>
@@ -395,8 +457,8 @@ export default function ChatPage() {
                     >
                       <Box
                         sx={{
-                          maxWidth: '70%',
-                          p: 2,
+                          maxWidth: { xs: '85%', sm: '70%' },
+                          p: { xs: 1.5, sm: 2 },
                           bgcolor: 'primary.main',
                           color: 'primary.contrastText',
                           borderRadius: 1,
@@ -441,13 +503,20 @@ export default function ChatPage() {
           </Stack>
         </Box>
 
-        <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Stack direction="row" spacing={1}>
+        <Box sx={{ p: { xs: 1.5, sm: 2 }, borderTop: 1, borderColor: 'divider' }}>
+          <Stack 
+            direction={{ xs: 'column', sm: 'row' }} 
+            spacing={1}
+          >
             <Select
               value={selectedConfig}
               onChange={(e) => setSelectedConfig(e.target.value)}
-              sx={{ minWidth: 220 }}
+              sx={{ 
+                minWidth: { xs: '100%', sm: 220 },
+                width: { xs: '100%', sm: 'auto' }
+              }}
               disabled={availableProviders.length === 0}
+              size="small"
             >
               {availableProviders.length === 0 ? (
                 <MenuItem disabled>No providers configured</MenuItem>
@@ -478,6 +547,7 @@ export default function ChatPage() {
               multiline
               maxRows={4}
               disabled={isGenerating}
+              size="small"
             />
             {isGenerating ? (
               <IconButton color="error" onClick={handleStop} title="Stop generating">

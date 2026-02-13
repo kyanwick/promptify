@@ -49,27 +49,102 @@ export class OpenAIProvider extends BaseAIProvider {
     this.validateOptions(options);
 
     try {
-      const response = await fetch(`${this.apiEndpoint}/chat/completions`, {
+      // Some newer OpenAI models (eg. gpt-5 series, gpt-4.1) expect
+      // `max_completion_tokens` instead of `max_tokens`. Choose key per model.
+      const needsMaxCompletion = (model: string | undefined) => {
+        if (!model) return false;
+        return /^gpt-5|^gpt-4\.1|^gpt-4o/.test(model);
+      };
+
+      const buildPayload = (includeTemperature = true) => {
+        const p: any = {
+          model: options.model,
+          messages,
+          top_p: options.topP,
+          frequency_penalty: options.frequencyPenalty,
+          presence_penalty: options.presencePenalty,
+        };
+
+        if (options.maxTokens !== undefined) {
+          if (needsMaxCompletion(options.model)) {
+            p.max_completion_tokens = options.maxTokens;
+          } else {
+            p.max_tokens = options.maxTokens;
+          }
+        }
+
+        // Only include temperature if caller explicitly provided it and includeTemperature is true
+        if (includeTemperature && options.temperature !== undefined) {
+          p.temperature = options.temperature;
+        }
+
+        return p;
+      };
+
+      if (options.maxTokens !== undefined) {
+        if (needsMaxCompletion(options.model)) {
+          payload.max_completion_tokens = options.maxTokens;
+        } else {
+          payload.max_tokens = options.maxTokens;
+        }
+      }
+
+      // First attempt: include temperature only if provided
+      let response = await fetch(`${this.apiEndpoint}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: options.model,
-          messages,
-          temperature: options.temperature ?? 0.7,
-          max_tokens: options.maxTokens,
-          top_p: options.topP,
-          frequency_penalty: options.frequencyPenalty,
-          presence_penalty: options.presencePenalty,
-        }),
+        body: JSON.stringify(buildPayload(true)),
         signal: AbortSignal.timeout(this.timeout),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+        let errBody: any = null;
+        try {
+          errBody = await response.json();
+        } catch (e) {
+          try {
+            errBody = await response.text();
+          } catch {
+            errBody = null;
+          }
+        }
+        console.error('[OpenAI] chat error response:', response.status, response.statusText, errBody);
+
+        const errMessage = errBody?.error?.message || (typeof errBody === 'string' ? errBody : response.statusText);
+
+        // If error mentions temperature unsupported and we sent a non-default temperature, retry without temperature
+        if (options.temperature !== undefined && typeof errMessage === 'string' && /temperature/i.test(errMessage) && /unsupported|not supported|Only the default/i.test(errMessage)) {
+          console.warn('[OpenAI] Retrying chat without temperature due to model limitation');
+          response = await fetch(`${this.apiEndpoint}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify(buildPayload(false)),
+            signal: AbortSignal.timeout(this.timeout),
+          });
+        } else {
+          throw new Error(`OpenAI API error: ${errMessage}`);
+        }
+      }
+
+      if (!response.ok) {
+        let errBody: any = null;
+        try {
+          errBody = await response.json();
+        } catch (e) {
+          try {
+            errBody = await response.text();
+          } catch {
+            errBody = null;
+          }
+        }
+        const errMessage = errBody?.error?.message || (typeof errBody === 'string' ? errBody : response.statusText);
+        throw new Error(`OpenAI API error: ${errMessage}`);
       }
 
       const data = await response.json();
@@ -99,27 +174,90 @@ export class OpenAIProvider extends BaseAIProvider {
     try {
       onChunk({ type: 'start' });
 
-      const response = await fetch(`${this.apiEndpoint}/chat/completions`, {
+      const needsMaxCompletion = (model: string | undefined) => {
+        if (!model) return false;
+        return /^gpt-5|^gpt-4\.1|^gpt-4o/.test(model);
+      };
+
+      const buildStreamPayload = (includeTemperature = true) => {
+        const p: any = {
+          model: options.model,
+          messages,
+          top_p: options.topP,
+          frequency_penalty: options.frequencyPenalty,
+          presence_penalty: options.presencePenalty,
+          stream: true,
+        };
+
+        if (options.maxTokens !== undefined) {
+          if (needsMaxCompletion(options.model)) {
+            p.max_completion_tokens = options.maxTokens;
+          } else {
+            p.max_tokens = options.maxTokens;
+          }
+        }
+
+        if (includeTemperature && options.temperature !== undefined) {
+          p.temperature = options.temperature;
+        }
+
+        return p;
+      };
+
+      // First try with temperature if provided
+      let response = await fetch(`${this.apiEndpoint}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: options.model,
-          messages,
-          temperature: options.temperature ?? 0.7,
-          max_tokens: options.maxTokens,
-          top_p: options.topP,
-          frequency_penalty: options.frequencyPenalty,
-          presence_penalty: options.presencePenalty,
-          stream: true,
-        }),
+        body: JSON.stringify(buildStreamPayload(true)),
         signal: AbortSignal.timeout(this.timeout),
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        let errBody: any = null;
+        try {
+          errBody = await response.json();
+        } catch (e) {
+          try {
+            errBody = await response.text();
+          } catch {
+            errBody = null;
+          }
+        }
+        console.error('[OpenAI] streaming error response:', response.status, response.statusText, errBody);
+        const errMessage = errBody?.error?.message || (typeof errBody === 'string' ? errBody : response.statusText);
+
+        if (options.temperature !== undefined && typeof errMessage === 'string' && /temperature/i.test(errMessage) && /unsupported|not supported|Only the default/i.test(errMessage)) {
+          console.warn('[OpenAI] Retrying streaming request without temperature due to model limitation');
+          response = await fetch(`${this.apiEndpoint}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify(buildStreamPayload(false)),
+            signal: AbortSignal.timeout(this.timeout),
+          });
+        } else {
+          throw new Error(`OpenAI API error: ${errMessage}`);
+        }
+      }
+
+      if (!response.ok) {
+        let errBody: any = null;
+        try {
+          errBody = await response.json();
+        } catch (e) {
+          try {
+            errBody = await response.text();
+          } catch {
+            errBody = null;
+          }
+        }
+        const errMessage = errBody?.error?.message || (typeof errBody === 'string' ? errBody : response.statusText);
+        throw new Error(`OpenAI API error: ${errMessage}`);
       }
 
       const reader = response.body?.getReader();
