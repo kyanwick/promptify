@@ -192,7 +192,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               horizontal: 'right',
             }}
           >
-            <MenuItem onClick={handleProfileMenuClose}>
+            <MenuItem
+              onClick={() => {
+                router.push('/dashboard/settings');
+                handleProfileMenuClose();
+              }}
+            >
               <ListItemIcon>
                 <SettingsIcon fontSize="small" />
               </ListItemIcon>
