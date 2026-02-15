@@ -392,11 +392,32 @@ export class ChatHistoryService {
    * Generate a session title from the first user message
    */
   generateTitle(firstMessage: string): string {
-    // Take first 97 chars and add ellipsis if longer
-    if (firstMessage.length > 97) {
-      return firstMessage.substring(0, 97) + '...';
+    // Special handling for prompt messages
+    if (firstMessage.startsWith('Following prompt:')) {
+      // Extract just the prompt name between quotes
+      const match = firstMessage.match(/Following prompt: "([^"]+)"/);
+      if (match && match[1]) {
+        return match[1];
+      }
     }
-    return firstMessage;
+
+    // For regular messages, use first line or first sentence
+    let title = firstMessage.split('\n')[0]; // Get first line
+
+    // If first line is too long, try to get first sentence
+    if (title.length > 60) {
+      const sentenceMatch = firstMessage.match(/^[^.!?]+[.!?]/);
+      if (sentenceMatch) {
+        title = sentenceMatch[0];
+      }
+    }
+
+    // Truncate if still too long
+    if (title.length > 50) {
+      return title.substring(0, 47) + '...';
+    }
+
+    return title || 'New Chat';
   }
 
   /**

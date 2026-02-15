@@ -77,7 +77,7 @@ export default function ChatPage() {
   // Chat history persistence state
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default on desktop
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Closed by default
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
