@@ -22,6 +22,8 @@ import type { AIProvider } from '@/services/ai/types';
 import { useUserId } from '@/hooks/useUserId';
 import { modelService } from '@/services/modelService';
 import { useRouter } from 'next/navigation';
+import MessageRenderer from '@/components/chat/MessageRenderer';
+import ThinkingIndicator from '@/components/chat/ThinkingIndicator';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -483,28 +485,24 @@ export default function ChatPage() {
                     </Box>
                   ) : (
                     <>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          color: 'success.main',
-                        }}
-                      >
-                        AI Assistant
-                      </Typography>
-                      <Typography
-                        variant="body1"
-                        sx={{
-                          lineHeight: 1.8,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          color: 'text.primary',
-                        }}
-                      >
-                        {message.content}
-                      </Typography>
+                      {message.content ? (
+                        <>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              color: 'success.main',
+                            }}
+                          >
+                            AI Assistant
+                          </Typography>
+                          <MessageRenderer content={message.content} isUser={false} />
+                        </>
+                      ) : (
+                        <ThinkingIndicator />
+                      )}
                     </>
                   )}
                 </Box>
