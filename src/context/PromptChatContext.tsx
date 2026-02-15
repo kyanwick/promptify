@@ -1,10 +1,13 @@
 'use client';
 import { createContext, useContext, useState, useCallback } from 'react';
 import type { SavedPrompt } from '@/services/promptService';
+import type { AIProvider } from '@/services/ai/types';
 
 export interface PromptChatData {
   prompt: SavedPrompt;
   responses: Record<string, string>;
+  provider?: AIProvider;
+  model?: string;
 }
 
 interface PromptChatContextType {

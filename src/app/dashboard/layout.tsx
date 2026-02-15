@@ -1,11 +1,11 @@
-import { Metadata } from 'next';
+'use client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-
-export const metadata: Metadata = {
-  title: 'Dashboard | Promptify',
-  description: 'Welcome to your dashboard',
-};
+import { PromptChatProvider } from '@/context/PromptChatContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <PromptChatProvider>
+      <DashboardLayout>{children}</DashboardLayout>
+    </PromptChatProvider>
+  );
 }

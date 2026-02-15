@@ -46,6 +46,10 @@ import { promptService, type SavedPrompt } from '@/services/promptService';
 import PromptPreview from './PromptPreview';
 import { useRouter } from 'next/navigation';
 import { usePromptChat } from '@/context/PromptChatContext';
+import { UserAPIKeyService } from '@/services/userAPIKeyService';
+import { modelService } from '@/services/modelService';
+import type { AIProvider } from '@/services/ai/types';
+import { useUserId } from '@/hooks/useUserId';
 
 type FilterTab = 'all' | 'draft' | 'published';
 type SortOption = 'updated' | 'created' | 'title';
@@ -55,6 +59,7 @@ export function PromptLibrary() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { setChatData } = usePromptChat();
+  const { userId } = useUserId();
 
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
   const [filteredPrompts, setFilteredPrompts] = useState<SavedPrompt[]>([]);
@@ -71,11 +76,60 @@ export function PromptLibrary() {
     message: '',
     severity: 'success',
   });
+  const [availableProviders, setAvailableProviders] = useState<Array<{ provider: AIProvider; models: string[] }>>([]);
+  const [selectedConfig, setSelectedConfig] = useState('');
+  const [loadingProviders, setLoadingProviders] = useState(false);
 
   // Load prompts on mount
   useEffect(() => {
     loadPrompts();
   }, []);
+
+  // Load available providers when dialog opens in fillAndChat mode
+  useEffect(() => {
+    if (previewDialogOpen && previewMode === 'fillAndChat' && userId) {
+      loadAvailableProviders();
+    }
+  }, [previewDialogOpen, previewMode, userId]);
+
+  const loadAvailableProviders = async () => {
+    if (!userId) return;
+
+    setLoadingProviders(true);
+    try {
+      const apiKeyService = new UserAPIKeyService();
+      const providers = await apiKeyService.getAvailableProviders(userId);
+
+      const providerModels = await Promise.all(
+        providers.map(async (provider) => {
+          const models = await modelService.getLatestModels(provider, userId);
+          return { provider, models };
+        })
+      );
+
+      setAvailableProviders(providerModels);
+
+      // Set first available config as default
+      if (providerModels.length > 0 && providerModels[0].models.length > 0) {
+        const firstConfig = `${providerModels[0].provider}:${providerModels[0].models[0]}`;
+        setSelectedConfig(firstConfig);
+      }
+    } catch (err) {
+      console.error('Failed to load providers:', err);
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
+  const getProviderLabel = (provider: AIProvider): string => {
+    const labels: Record<AIProvider, string> = {
+      openai: 'OpenAI',
+      anthropic: 'Anthropic',
+      google: 'Google',
+      local: 'Local',
+    };
+    return labels[provider] || provider;
+  };
 
   // Filter and sort prompts when data or filters change
   useEffect(() => {
@@ -264,10 +318,25 @@ export function PromptLibrary() {
   const handleFormSubmit = (responses: Record<string, string>) => {
     if (!selectedPrompt) return;
 
+    // Check if provider/model is selected
+    if (!selectedConfig && previewMode === 'fillAndChat') {
+      setSnackbar({
+        open: true,
+        message: 'Please select a provider and model',
+        severity: 'error',
+      });
+      return;
+    }
+
+    // Parse provider and model from config
+    const [provider, model] = selectedConfig.split(':');
+
     // Save to context for the chat to access
     setChatData({
       prompt: selectedPrompt,
       responses,
+      provider: provider as AIProvider,
+      model,
     });
 
     // Close the dialog and navigate to chat
@@ -514,7 +583,42 @@ export function PromptLibrary() {
             </Typography>
           </Stack>
         </DialogTitle>
-        <DialogContent sx={{ bgcolor: previewMode === 'fillAndChat' ? 'background.default' : 'transparent' }}>
+        <DialogContent sx={{ bgcolor: previewMode === 'fillAndChat' ? 'background.default' : 'transparent', pb: 1 }}>
+          {previewMode === 'fillAndChat' && (
+            <Box sx={{ mb: 2, px: { xs: 2, sm: 4 }, pt: 2 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>AI Provider & Model</InputLabel>
+                <Select
+                  value={selectedConfig}
+                  label="AI Provider & Model"
+                  onChange={(e) => setSelectedConfig(e.target.value)}
+                  disabled={loadingProviders || availableProviders.length === 0}
+                >
+                  {loadingProviders ? (
+                    <MenuItem disabled>Loading providers...</MenuItem>
+                  ) : availableProviders.length === 0 ? (
+                    <MenuItem disabled>No providers configured</MenuItem>
+                  ) : (
+                    availableProviders.map((item) =>
+                      item.models.map((model) => (
+                        <MenuItem
+                          key={`${item.provider}:${model}`}
+                          value={`${item.provider}:${model}`}
+                        >
+                          {getProviderLabel(item.provider)} - {model}
+                        </MenuItem>
+                      ))
+                    )
+                  )}
+                </Select>
+                {availableProviders.length === 0 && !loadingProviders && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                    Please configure API keys in Settings first
+                  </Typography>
+                )}
+              </FormControl>
+            </Box>
+          )}
           {selectedPrompt && (
             <PromptPreview
               nodes={selectedPrompt.nodes}

@@ -93,10 +93,12 @@ export default function ChatPage() {
 
   // Create initial session when providers are loaded and config is selected
   useEffect(() => {
-    if (!loadingProviders && selectedConfig && userId && !currentSession && !chatData) {
+    // Don't create a session if we have a prompt message already loaded
+    const hasPromptMessage = messages.length > 0 && messages[0].content.startsWith('Following prompt:');
+    if (!loadingProviders && selectedConfig && userId && !currentSession && !chatData && !hasPromptMessage) {
       createNewSession();
     }
-  }, [loadingProviders, selectedConfig, userId, currentSession, chatData]);
+  }, [loadingProviders, selectedConfig, userId, currentSession, chatData, messages]);
 
   // Run automatic cleanup on mount (once per day)
   useEffect(() => {
@@ -170,7 +172,7 @@ export default function ChatPage() {
   };
 
   // Create a new chat session
-  const createNewSession = async () => {
+  const createNewSession = async (preserveMessages = false) => {
     if (!selectedConfig || !userId) return null;
 
     const [provider, model] = selectedConfig.split(':');
@@ -183,12 +185,15 @@ export default function ChatPage() {
 
     if (session) {
       setCurrentSession(session);
-      setMessages([
-        {
-          role: 'assistant',
-          content: 'Hello! How can I help you today?',
-        },
-      ]);
+      // Only reset messages if not preserving them (e.g., when coming from a prompt)
+      if (!preserveMessages) {
+        setMessages([
+          {
+            role: 'assistant',
+            content: 'Hello! How can I help you today?',
+          },
+        ]);
+      }
       setSidebarRefreshTrigger(prev => prev + 1); // Refresh sidebar
       console.log('[Chat] Created new session:', session.id);
     }
@@ -246,11 +251,17 @@ export default function ChatPage() {
 
   // Load prompt data from context on mount
   useEffect(() => {
-    if (chatData) {
+    if (chatData && userId) {
+      // If provider/model is specified in chatData, use it
+      if (chatData.provider && chatData.model) {
+        const configFromPrompt = `${chatData.provider}:${chatData.model}`;
+        setSelectedConfig(configFromPrompt);
+      }
+
       // Include system message and user prompts
       const systemNode = chatData.prompt.nodes.find((node) => node.type === 'system');
       const userPrompts = chatData.prompt.nodes.filter((node) => node.type === 'user');
-      
+
       let responseText = '';
       if (systemNode) {
         responseText += `System: ${systemNode.content}\n\nContext:\n\n`;
@@ -260,23 +271,48 @@ export default function ChatPage() {
         .join('\n\n');
 
       // Store prompt data in state for rendering
+      console.log('[Chat] Setting prompt data:', {
+        promptTitle: chatData.prompt.title,
+        hasProvider: !!chatData.provider,
+        hasModel: !!chatData.model,
+      });
       setCurrentPrompt(chatData.prompt);
       setCurrentResponses(chatData.responses);
       setPayloadMessage(responseText);
 
+      const promptMessage = `Following prompt: "${chatData.prompt.title}"\n\n${responseText}`;
+      console.log('[Chat] Prompt message starts with:', promptMessage.substring(0, 30));
+
       setMessages([
         {
           role: 'user',
-          content: `Following prompt: "${chatData.prompt.title}"\n\n${responseText}`,
-        },
-        {
-          role: 'assistant',
-          content: 'This is a placeholder response. Connect your AI service here!',
+          content: promptMessage,
         },
       ]);
-      clearChatData();
+
+      // Wait for providers to load before sending
+      if (!loadingProviders && (chatData.provider || selectedConfig)) {
+        // Automatically send the prompt to the AI
+        sendMessageToAI(promptMessage);
+      }
+
+      // Clear chatData after a brief delay to ensure component has rendered
+      setTimeout(() => {
+        clearChatData();
+      }, 100);
     }
-  }, [chatData, clearChatData]);
+  }, [chatData, userId, loadingProviders]);
+
+  // Send prompt message after providers load (if we have a pending prompt message)
+  useEffect(() => {
+    if (!loadingProviders && selectedConfig && messages.length === 1 && messages[0].role === 'user' && messages[0].content.startsWith('Following prompt:') && currentPrompt) {
+      // Check if we haven't already sent this message (no assistant response yet)
+      const hasAssistantResponse = messages.some(m => m.role === 'assistant');
+      if (!hasAssistantResponse && !isGenerating) {
+        sendMessageToAI(messages[0].content);
+      }
+    }
+  }, [loadingProviders, selectedConfig]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -290,8 +326,8 @@ export default function ChatPage() {
     }
   }, [selectedConfig]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isGenerating || !userId) return;
+  const sendMessageToAI = async (userMessage: string) => {
+    if (isGenerating || !userId) return;
 
     // Check if user has configured an API key
     if (availableProviders.length === 0) {
@@ -300,16 +336,14 @@ export default function ChatPage() {
     }
 
     setError(null);
-    const userMessage = input;
-    setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setIsGenerating(true);
     assistantMessageRef.current = '';
 
     // Check if we need to create a session
     let sessionToUse = currentSession;
     if (!sessionToUse) {
-      sessionToUse = await createNewSession();
+      // Preserve messages when creating a session (don't reset to greeting)
+      sessionToUse = await createNewSession(true);
       if (!sessionToUse) {
         setError('Failed to create chat session');
         setIsGenerating(false);
@@ -356,10 +390,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [
-            ...messages.filter((m) => m.role !== 'assistant' || m.content !== 'This is a placeholder response. Connect your AI service here!'),
-            { role: 'user', content: userMessage },
-          ],
+          messages: messages.filter((m) => m.role !== 'assistant' || m.content !== 'This is a placeholder response. Connect your AI service here!'),
           options: {
             model,
             temperature: 0.7,
@@ -462,6 +493,16 @@ export default function ChatPage() {
       }
       setIsGenerating(false);
     }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || isGenerating || !userId) return;
+
+    const userMessage = input;
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
+
+    await sendMessageToAI(userMessage);
   };
 
   const handleStop = () => {
@@ -567,7 +608,19 @@ export default function ChatPage() {
           <Stack spacing={{ xs: 2, sm: 4 }}>
             {messages.map((message, index) => {
               const isPromptMessage = index === 0 && message.role === 'user' && message.content.startsWith('Following prompt:');
-              
+
+              if (index === 0) {
+                console.log('[Chat Render] First message:', {
+                  index,
+                  role: message.role,
+                  contentStart: message.content.substring(0, 30),
+                  isPromptMessage,
+                  hasCurrentPrompt: !!currentPrompt,
+                  currentPromptTitle: currentPrompt?.title,
+                  willRenderCard: isPromptMessage && !!currentPrompt,
+                });
+              }
+
               if (isPromptMessage && currentPrompt) {
                 return (
                   <Box key={index}>
