@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Promptify is a Next.js 16 (App Router) application that provides a visual prompt builder for AI models. Users can create node-based prompt flows, manage API keys for multiple AI providers, and chat with various AI models through a unified interface.
+Promptify is a Next.js 16 (App Router) application that provides a visual prompt builder for AI models and and prompt library for users (later to implement a marketplace for mon). Users can create node-based prompt flows, manage API keys for multiple AI providers, and chat with various AI models through a unified interface.
 
 ## Commands
 
@@ -87,8 +87,7 @@ Prefer modular file organization when adding features. Don't create monolithic f
 4. Add API route in `src/app/api/models/[provider]/route.ts`
 5. Update `AIProvider` type in `src/services/ai/types.ts`
 
-### Environment Configuration
-Environment variables are stored in `.env.local`:
+### Environment Variables Required
 ```
 NEXT_PUBLIC_SUPABASE_URL=          # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=     # Supabase anonymous key
@@ -96,22 +95,6 @@ SUPABASE_SERVICE_ROLE_KEY=         # Supabase service role key (server-side only
 ```
 
 User API keys for OpenAI/Anthropic/Google are stored per-user in the database or localStorage.
-
-## MCP Servers
-
-This project uses Model Context Protocol (MCP) servers for enhanced development:
-
-### Context7 MCP
-**Always use Context7 for code generation, setup/configuration steps, or library/API documentation.** Automatically use Context7 MCP tools to resolve library IDs and get library documentation without explicit user requests.
-
-### MUI MCP
-Use the MUI MCP server when working with Material-UI components. This provides:
-- Component documentation and API references
-- Material-UI v7 specific guidance
-- Best practices for @emotion styling
-- Integration patterns with Next.js
-
-When adding or modifying UI components that use Material-UI, leverage the MUI MCP to get accurate component APIs and usage examples.
 
 ## Important Notes
 
