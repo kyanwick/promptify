@@ -81,14 +81,6 @@ export class OpenAIProvider extends BaseAIProvider {
         return p;
       };
 
-      if (options.maxTokens !== undefined) {
-        if (needsMaxCompletion(options.model)) {
-          payload.max_completion_tokens = options.maxTokens;
-        } else {
-          payload.max_tokens = options.maxTokens;
-        }
-      }
-
       // First attempt: include temperature only if provided
       let response = await fetch(`${this.apiEndpoint}/chat/completions`, {
         method: 'POST',

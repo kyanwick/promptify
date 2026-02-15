@@ -13,7 +13,13 @@ import {
   Button,
   CircularProgress,
 } from '@mui/material';
-import { Send as SendIcon, ExpandMore as ExpandMoreIcon, Stop as StopIcon } from '@mui/icons-material';
+import {
+  Send as SendIcon,
+  ExpandMore as ExpandMoreIcon,
+  Stop as StopIcon,
+  Menu as MenuIcon,
+  History as HistoryIcon,
+} from '@mui/icons-material';
 import { useState, useEffect, useRef } from 'react';
 import { usePromptChat } from '@/context/PromptChatContext';
 import { SavedPrompt } from '@/services/promptService';
@@ -24,6 +30,13 @@ import { modelService } from '@/services/modelService';
 import { useRouter } from 'next/navigation';
 import MessageRenderer from '@/components/chat/MessageRenderer';
 import ThinkingIndicator from '@/components/chat/ThinkingIndicator';
+import ChatHistoryList from '@/components/chat/ChatHistoryList';
+import {
+  chatHistoryService,
+  MAX_MESSAGES_PER_SESSION,
+  type ChatSession,
+} from '@/services/chatHistoryService';
+import { chatCleanupService } from '@/services/chatCleanupService';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -61,6 +74,12 @@ export default function ChatPage() {
   const [availableProviders, setAvailableProviders] = useState<Array<{ provider: AIProvider; models: string[] }>>([]);
   const [loadingProviders, setLoadingProviders] = useState(true);
 
+  // Chat history persistence state
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default on desktop
+  const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const assistantMessageRef = useRef<string>('');
@@ -71,6 +90,20 @@ export default function ChatPage() {
       loadAvailableProviders(userId);
     }
   }, [userId, userIdLoading]);
+
+  // Create initial session when providers are loaded and config is selected
+  useEffect(() => {
+    if (!loadingProviders && selectedConfig && userId && !currentSession && !chatData) {
+      createNewSession();
+    }
+  }, [loadingProviders, selectedConfig, userId, currentSession, chatData]);
+
+  // Run automatic cleanup on mount (once per day)
+  useEffect(() => {
+    if (userId) {
+      chatCleanupService.autoCleanup();
+    }
+  }, [userId]);
 
   const loadAvailableProviders = async (userId: string) => {
     setLoadingProviders(true);
@@ -134,6 +167,76 @@ export default function ChatPage() {
       local: 'Local',
     };
     return labels[provider] || provider;
+  };
+
+  // Create a new chat session
+  const createNewSession = async () => {
+    if (!selectedConfig || !userId) return null;
+
+    const [provider, model] = selectedConfig.split(':');
+
+    const session = await chatHistoryService.createSession({
+      title: 'New Chat',
+      provider: provider as AIProvider,
+      model,
+    });
+
+    if (session) {
+      setCurrentSession(session);
+      setMessages([
+        {
+          role: 'assistant',
+          content: 'Hello! How can I help you today?',
+        },
+      ]);
+      setSidebarRefreshTrigger(prev => prev + 1); // Refresh sidebar
+      console.log('[Chat] Created new session:', session.id);
+    }
+
+    return session;
+  };
+
+  // Load an existing session with its messages
+  const loadSession = async (sessionId: string) => {
+    setLoadingSession(true);
+    try {
+      const data = await chatHistoryService.getSessionWithMessages(sessionId);
+      if (data) {
+        setCurrentSession(data.session);
+        setMessages(data.messages.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })));
+
+        // Update selected config to match session
+        setSelectedConfig(`${data.session.provider}:${data.session.model}`);
+
+        console.log('[Chat] Loaded session:', sessionId, 'with', data.messages.length, 'messages');
+      }
+    } catch (err) {
+      console.error('[Chat] Failed to load session:', err);
+      setError('Failed to load chat session');
+    } finally {
+      setLoadingSession(false);
+    }
+  };
+
+  // Save a message to the database
+  const saveMessageToDB = async (role: 'user' | 'assistant', content: string) => {
+    if (!currentSession) return;
+
+    const saved = await chatHistoryService.addMessage({
+      session_id: currentSession.id,
+      role,
+      content,
+    });
+
+    if (saved) {
+      // Update session message count in local state
+      setCurrentSession(prev => prev ? { ...prev, message_count: prev.message_count + 1 } : null);
+    }
+
+    return saved;
   };
 
   // Auto-scroll to bottom
@@ -203,7 +306,42 @@ export default function ChatPage() {
     setIsGenerating(true);
     assistantMessageRef.current = '';
 
+    // Check if we need to create a session
+    let sessionToUse = currentSession;
+    if (!sessionToUse) {
+      sessionToUse = await createNewSession();
+      if (!sessionToUse) {
+        setError('Failed to create chat session');
+        setIsGenerating(false);
+        return;
+      }
+    }
+
+    // Check message limit
+    if (sessionToUse.message_count >= MAX_MESSAGES_PER_SESSION - 1) {
+      setError(`Message limit reached (${MAX_MESSAGES_PER_SESSION} messages per chat). Please start a new chat.`);
+      setIsGenerating(false);
+      return;
+    }
+
     try {
+      // Update session title with first user message if it's still "New Chat"
+      // Do this BEFORE saving the message so we don't have timing issues
+      if (sessionToUse.title === 'New Chat') {
+        const newTitle = chatHistoryService.generateTitle(userMessage);
+        const updated = await chatHistoryService.updateSessionTitle(sessionToUse.id, newTitle);
+        if (updated) {
+          setCurrentSession(updated);
+          setSidebarRefreshTrigger(prev => prev + 1); // Refresh sidebar to show new title
+        }
+      }
+
+      // Save user message to database
+      const savedUserMessage = await saveMessageToDB('user', userMessage);
+      if (!savedUserMessage) {
+        console.warn('[Chat] Failed to save user message to DB');
+      }
+
       // Parse config: "provider:model"
       const [provider, model] = selectedConfig.split(':');
 
@@ -308,6 +446,14 @@ export default function ChatPage() {
         }
       }
 
+      // Save assistant message to database
+      if (assistantContent) {
+        const savedAssistantMessage = await saveMessageToDB('assistant', assistantContent);
+        if (!savedAssistantMessage) {
+          console.warn('[Chat] Failed to save assistant message to DB');
+        }
+      }
+
       setIsGenerating(false);
     } catch (err: any) {
       console.error('[Chat] Error in handleSend:', err);
@@ -327,10 +473,40 @@ export default function ChatPage() {
   };
 
   return (
-    <Box sx={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
-      <Typography variant="h4" fontWeight={600} mb={2}>
-        AI Chat
-      </Typography>
+    <Box sx={{ display: 'flex', height: 'calc(100vh - 120px)', position: 'relative' }}>
+      {/* Main Chat Area */}
+      <Box
+        sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'margin 0.3s',
+          mr: { xs: 0, md: sidebarOpen ? '340px' : 0 },
+          minWidth: 0, // Allow flex item to shrink below content size
+        }}
+      >
+        {/* Header with title and actions */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Typography variant="h4" fontWeight={600} sx={{ flex: 1 }}>
+            {currentSession?.title || 'AI Chat'}
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={createNewSession}
+            disabled={loadingProviders || !selectedConfig}
+            size="small"
+            sx={{ mr: { xs: 0, md: 1 } }}
+          >
+            New Chat
+          </Button>
+          <IconButton
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            color={sidebarOpen ? 'primary' : 'default'}
+            title={sidebarOpen ? 'Hide chat history' : 'Show chat history'}
+          >
+            <HistoryIcon />
+          </IconButton>
+        </Box>
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
@@ -365,6 +541,24 @@ export default function ChatPage() {
           }
         >
           No API keys configured. Please add your API keys in Settings (Avatar → Settings → API Keys tab).
+        </Alert>
+      )}
+
+      {currentSession && currentSession.message_count >= MAX_MESSAGES_PER_SESSION * 0.9 && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 2 }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={createNewSession}
+            >
+              New Chat
+            </Button>
+          }
+        >
+          Approaching message limit ({currentSession.message_count}/{MAX_MESSAGES_PER_SESSION}). Consider starting a new chat soon.
         </Alert>
       )}
 
@@ -570,6 +764,17 @@ export default function ChatPage() {
           </Stack>
         </Box>
       </Card>
+      </Box>
+
+      {/* Chat History Sidebar */}
+      <ChatHistoryList
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentSessionId={currentSession?.id || null}
+        onSessionClick={loadSession}
+        onNewChat={createNewSession}
+        refreshTrigger={sidebarRefreshTrigger}
+      />
     </Box>
   );
 }
