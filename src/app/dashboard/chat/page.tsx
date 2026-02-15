@@ -11,6 +11,7 @@ import {
   Select,
   MenuItem,
   Button,
+  CircularProgress,
 } from '@mui/material';
 import { Send as SendIcon, ExpandMore as ExpandMoreIcon, Stop as StopIcon } from '@mui/icons-material';
 import { useState, useEffect, useRef } from 'react';
@@ -56,7 +57,8 @@ export default function ChatPage() {
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
   const [selectedConfig, setSelectedConfig] = useState('');
   const [availableProviders, setAvailableProviders] = useState<Array<{ provider: AIProvider; models: string[] }>>([]);
-  
+  const [loadingProviders, setLoadingProviders] = useState(true);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const assistantMessageRef = useRef<string>('');
@@ -69,6 +71,7 @@ export default function ChatPage() {
   }, [userId, userIdLoading]);
 
   const loadAvailableProviders = async (userId: string) => {
+    setLoadingProviders(true);
     try {
       console.log('[Chat] Loading providers for userId:', userId);
       const apiKeyService = new UserAPIKeyService();
@@ -97,7 +100,7 @@ export default function ChatPage() {
         const providerExists = providerModels.find(
           (p) => p.provider === lastProvider && p.models.includes(lastModel)
         );
-        
+
         if (providerExists) {
           setSelectedConfig(lastUsedConfig);
           configSet = true;
@@ -116,6 +119,8 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error('[Chat] Failed to load available providers', err);
+    } finally {
+      setLoadingProviders(false);
     }
   };
 
@@ -337,14 +342,20 @@ export default function ChatPage() {
         </Alert>
       )}
 
-      {!userIdLoading && availableProviders.length === 0 && (
-        <Alert 
-          severity="warning" 
+      {loadingProviders && (
+        <Alert severity="info" icon={<CircularProgress size={20} color="info" />} sx={{ mb: 2 }}>
+          Loading available AI providers...
+        </Alert>
+      )}
+
+      {!loadingProviders && availableProviders.length === 0 && (
+        <Alert
+          severity="warning"
           sx={{ mb: 2 }}
           action={
-            <Button 
-              color="inherit" 
-              size="small" 
+            <Button
+              color="inherit"
+              size="small"
               onClick={() => router.push('/dashboard/settings')}
             >
               Go to Settings

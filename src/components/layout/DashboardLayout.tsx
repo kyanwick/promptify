@@ -121,14 +121,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const sidebarWidth = isSidebarCollapsed ? collapsedDrawerWidth : drawerWidth;
 
-  const drawer = (
+  const drawer = (isMobile: boolean = false) => (
     <Box>
-      <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', px: isSidebarCollapsed ? 1 : 2 }}>
+      <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', px: !isMobile && isSidebarCollapsed ? 1 : 2 }}>
         <Typography
           variant="h6"
           noWrap
           component="div"
-          sx={{ fontWeight: 700, display: isSidebarCollapsed ? 'none' : 'block' }}
+          sx={{ fontWeight: 700, display: !isMobile && isSidebarCollapsed ? 'none' : 'block' }}
         >
           Promptify
         </Typography>
@@ -136,7 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           size="small"
           onClick={handleSidebarCollapseToggle}
           aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          sx={{ ml: isSidebarCollapsed ? 0 : 1 }}
+          sx={{ ml: !isMobile && isSidebarCollapsed ? 0 : 1, display: { xs: 'none', sm: 'flex' } }}
         >
           <MenuOpenIcon
             sx={{ transform: isSidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
@@ -151,10 +151,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               component={Link}
               href={item.href}
               selected={pathname === item.href}
-              title={isSidebarCollapsed ? item.text : undefined}
+              onClick={isMobile ? handleDrawerToggle : undefined}
+              title={!isMobile && isSidebarCollapsed ? item.text : undefined}
               sx={{
-                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-                px: isSidebarCollapsed ? 1.5 : 2,
+                justifyContent: !isMobile && isSidebarCollapsed ? 'center' : 'flex-start',
+                px: !isMobile && isSidebarCollapsed ? 1.5 : 2,
                 '&.Mui-selected': {
                   backgroundColor: 'primary.main',
                   color: 'primary.contrastText',
@@ -167,12 +168,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 },
               }}
             >
-              <ListItemIcon sx={{ minWidth: isSidebarCollapsed ? 0 : 40, justifyContent: 'center' }}>
+              <ListItemIcon sx={{ minWidth: !isMobile && isSidebarCollapsed ? 0 : 40, justifyContent: 'center' }}>
                 {item.icon}
               </ListItemIcon>
               <ListItemText
                 primary={item.text}
-                sx={{ display: isSidebarCollapsed ? 'none' : 'block' }}
+                sx={{ display: !isMobile && isSidebarCollapsed ? 'none' : 'block' }}
               />
             </ListItemButton>
           </ListItem>
@@ -264,7 +265,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}
         >
-          {drawer}
+          {drawer(true)}
         </Drawer>
         <Drawer
           variant="permanent"
@@ -278,7 +279,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}
           open
         >
-          {drawer}
+          {drawer(false)}
         </Drawer>
       </Box>
       <Box
